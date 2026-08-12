@@ -1,0 +1,257 @@
+--// YUSAKI - Luau Loop GUI
+--// Código corrigido + Scrolling + Toggle abrir/fechar
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+local Running = false
+
+--// GUI principal
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "LuauLoopGUI"
+Gui.ResetOnSpawn = false
+Gui.Parent = PlayerGui
+
+--// Botão flutuante
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Size = UDim2.fromOffset(55, 55)
+ToggleButton.Position = UDim2.new(0, 15, 0.5, -27)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+ToggleButton.Text = "≡"
+ToggleButton.TextColor3 = Color3.new(1, 1, 1)
+ToggleButton.TextSize = 25
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.BorderSizePixel = 0
+ToggleButton.Parent = Gui
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(1, 0)
+ToggleCorner.Parent = ToggleButton
+
+--// Janela
+local Main = Instance.new("Frame")
+Main.Size = UDim2.fromOffset(320, 300)
+Main.Position = UDim2.new(0.5, -160, 0.5, -150)
+Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Main.BorderSizePixel = 0
+Main.Parent = Gui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = Main
+
+--// Título
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -50, 0, 40)
+Title.Position = UDim2.fromOffset(10, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Luau Loop"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.TextSize = 19
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Main
+
+--// Botão X
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.fromOffset(35, 35)
+CloseButton.Position = UDim2.new(1, -40, 0, 3)
+CloseButton.BackgroundTransparency = 1
+CloseButton.Text = "×"
+CloseButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+CloseButton.TextSize = 25
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = Main
+
+--// Área de código com rolagem
+local CodeScroll = Instance.new("ScrollingFrame")
+CodeScroll.Size = UDim2.new(1, -20, 0, 150)
+CodeScroll.Position = UDim2.fromOffset(10, 45)
+CodeScroll.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+CodeScroll.BorderSizePixel = 0
+CodeScroll.ScrollBarThickness = 5
+CodeScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+CodeScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+CodeScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+CodeScroll.Parent = Main
+
+local ScrollCorner = Instance.new("UICorner")
+ScrollCorner.CornerRadius = UDim.new(0, 7)
+ScrollCorner.Parent = CodeScroll
+
+--// Caixa de código
+local CodeBox = Instance.new("TextBox")
+CodeBox.Size = UDim2.new(1, -10, 0, 140)
+CodeBox.Position = UDim2.fromOffset(5, 5)
+CodeBox.BackgroundTransparency = 1
+CodeBox.TextColor3 = Color3.new(1, 1, 1)
+CodeBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 120)
+CodeBox.PlaceholderText = "Cole seu código Luau aqui..."
+CodeBox.Text = ""
+CodeBox.TextSize = 13
+CodeBox.Font = Enum.Font.Code
+CodeBox.TextXAlignment = Enum.TextXAlignment.Left
+CodeBox.TextYAlignment = Enum.TextYAlignment.Top
+CodeBox.TextWrapped = false
+CodeBox.MultiLine = true
+CodeBox.ClearTextOnFocus = false
+CodeBox.TextEditable = true
+CodeBox.Parent = CodeScroll
+
+--// Intervalo
+local Interval = Instance.new("TextBox")
+Interval.Size = UDim2.fromOffset(100, 35)
+Interval.Position = UDim2.fromOffset(10, 205)
+Interval.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Interval.TextColor3 = Color3.new(1, 1, 1)
+Interval.Text = "0.1"
+Interval.TextSize = 14
+Interval.Font = Enum.Font.Gotham
+Interval.ClearTextOnFocus = false
+Interval.Parent = Main
+
+local IntervalCorner = Instance.new("UICorner")
+IntervalCorner.CornerRadius = UDim.new(0, 7)
+IntervalCorner.Parent = Interval
+
+local IntervalLabel = Instance.new("TextLabel")
+IntervalLabel.Size = UDim2.fromOffset(100, 35)
+IntervalLabel.Position = UDim2.fromOffset(115, 205)
+IntervalLabel.BackgroundTransparency = 1
+IntervalLabel.Text = "segundos"
+IntervalLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+IntervalLabel.TextSize = 13
+IntervalLabel.Font = Enum.Font.Gotham
+IntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
+IntervalLabel.Parent = Main
+
+--// Iniciar
+local Start = Instance.new("TextButton")
+Start.Size = UDim2.fromOffset(140, 40)
+Start.Position = UDim2.fromOffset(10, 250)
+Start.BackgroundColor3 = Color3.fromRGB(45, 170, 75)
+Start.Text = "INICIAR"
+Start.TextColor3 = Color3.new(1, 1, 1)
+Start.TextSize = 15
+Start.Font = Enum.Font.GothamBold
+Start.Parent = Main
+
+local StartCorner = Instance.new("UICorner")
+StartCorner.CornerRadius = UDim.new(0, 7)
+StartCorner.Parent = Start
+
+--// Parar
+local Stop = Instance.new("TextButton")
+Stop.Size = UDim2.fromOffset(140, 40)
+Stop.Position = UDim2.fromOffset(170, 250)
+Stop.BackgroundColor3 = Color3.fromRGB(170, 50, 50)
+Stop.Text = "PARAR"
+Stop.TextColor3 = Color3.new(1, 1, 1)
+Stop.TextSize = 15
+Stop.Font = Enum.Font.GothamBold
+Stop.Parent = Main
+
+local StopCorner = Instance.new("UICorner")
+StopCorner.CornerRadius = UDim.new(0, 7)
+StopCorner.Parent = Stop
+
+--// Executar código
+local function ExecuteCode()
+    local Code = CodeBox.Text
+
+    if Code == "" then
+        return
+    end
+
+    local Function, Error = loadstring(Code)
+
+    if not Function then
+        warn("Erro no código: " .. tostring(Error))
+        return
+    end
+
+    local Success, Result = pcall(Function)
+
+    if not Success then
+        warn("Erro durante execução: " .. tostring(Result))
+    end
+end
+
+--// Iniciar loop
+Start.MouseButton1Click:Connect(function()
+    if Running then
+        return
+    end
+
+    Running = true
+    Start.Text = "RODANDO..."
+
+    task.spawn(function()
+        while Running do
+            ExecuteCode()
+
+            local Delay = tonumber(Interval.Text) or 0.1
+            task.wait(math.max(0, Delay))
+        end
+    end)
+end)
+
+--// Parar loop
+Stop.MouseButton1Click:Connect(function()
+    Running = false
+    Start.Text = "INICIAR"
+end)
+
+--// Abrir/fechar
+local function ToggleGUI()
+    Main.Visible = not Main.Visible
+end
+
+ToggleButton.MouseButton1Click:Connect(ToggleGUI)
+CloseButton.MouseButton1Click:Connect(function()
+    Main.Visible = false
+end)
+
+--// Arrastar janela
+local Dragging = false
+local DragStart
+local StartPosition
+
+Main.InputBegan:Connect(function(Input)
+    if Input.UserInputType == Enum.UserInputType.Touch
+        or Input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+        Dragging = true
+        DragStart = Input.Position
+        StartPosition = Main.Position
+
+        Input.Changed:Connect(function()
+            if Input.UserInputState == Enum.UserInputState.End then
+                Dragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(Input)
+    if not Dragging then
+        return
+    end
+
+    if Input.UserInputType == Enum.UserInputType.Touch
+        or Input.UserInputType == Enum.UserInputType.MouseMovement then
+
+        local Delta = Input.Position - DragStart
+
+        Main.Position = UDim2.new(
+            StartPosition.X.Scale,
+            StartPosition.X.Offset + Delta.X,
+            StartPosition.Y.Scale,
+            StartPosition.Y.Offset + Delta.Y
+        )
+    end
+end)
