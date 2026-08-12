@@ -1,0 +1,283 @@
+--// YUSAKI MINI HUB
+--// WalkSpeed + Infinite Jump + Fly Platform
+--// Mobile / GUI pequena
+
+repeat task.wait() until game:IsLoaded()
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local Player = Players.LocalPlayer
+
+local Speed = 16
+local SpeedEnabled = false
+local InfJump = false
+local PlatformEnabled = false
+
+local Character
+local Humanoid
+local Root
+
+local function setupCharacter(char)
+	Character = char
+	Humanoid = char:WaitForChild("Humanoid")
+	Root = char:WaitForChild("HumanoidRootPart")
+end
+
+if Player.Character then
+	setupCharacter(Player.Character)
+end
+
+Player.CharacterAdded:Connect(setupCharacter)
+
+--==================================================
+-- GUI
+--==================================================
+
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "YUSAKI_MINI"
+Gui.ResetOnSpawn = false
+Gui.Parent = Player:WaitForChild("PlayerGui")
+
+local Main = Instance.new("Frame")
+Main.Size = UDim2.fromOffset(230, 245)
+Main.Position = UDim2.new(0.5, -115, 0.5, -122)
+Main.BackgroundColor3 = Color3.fromRGB(25,25,30)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Main.Parent = Gui
+
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0,10)
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1,-40,0,35)
+Title.Position = UDim2.fromOffset(10,0)
+Title.BackgroundTransparency = 1
+Title.Text = "YUSAKI MINI"
+Title.TextColor3 = Color3.new(1,1,1)
+Title.TextSize = 17
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Main
+
+--==================================================
+-- BOTÃO FLUTUANTE
+--==================================================
+
+local OpenButton = Instance.new("TextButton")
+OpenButton.Size = UDim2.fromOffset(50,50)
+OpenButton.Position = UDim2.new(0,15,0.5,0)
+OpenButton.BackgroundColor3 = Color3.fromRGB(35,35,42)
+OpenButton.Text = "≡"
+OpenButton.TextColor3 = Color3.new(1,1,1)
+OpenButton.TextSize = 25
+OpenButton.Font = Enum.Font.GothamBold
+OpenButton.Visible = false
+OpenButton.Active = true
+OpenButton.Draggable = true
+OpenButton.Parent = Gui
+
+Instance.new("UICorner",OpenButton).CornerRadius = UDim.new(1,0)
+
+--==================================================
+-- FUNÇÃO BOTÃO
+--==================================================
+
+local function Button(text,y)
+	local B = Instance.new("TextButton")
+
+	B.Size = UDim2.new(1,-20,0,36)
+	B.Position = UDim2.fromOffset(10,y)
+
+	B.BackgroundColor3 = Color3.fromRGB(45,45,55)
+	B.TextColor3 = Color3.new(1,1,1)
+
+	B.Text = text
+	B.TextSize = 13
+	B.Font = Enum.Font.GothamBold
+
+	B.Parent = Main
+
+	Instance.new("UICorner",B).CornerRadius = UDim.new(0,7)
+
+	return B
+end
+
+--==================================================
+-- SPEED
+--==================================================
+
+local SpeedBox = Instance.new("TextBox")
+
+SpeedBox.Size = UDim2.new(1,-20,0,32)
+SpeedBox.Position = UDim2.fromOffset(10,40)
+
+SpeedBox.BackgroundColor3 = Color3.fromRGB(40,40,48)
+SpeedBox.TextColor3 = Color3.new(1,1,1)
+
+SpeedBox.Text = "16"
+SpeedBox.PlaceholderText = "WalkSpeed"
+
+SpeedBox.TextSize = 13
+SpeedBox.Font = Enum.Font.Gotham
+
+SpeedBox.ClearTextOnFocus = false
+SpeedBox.Parent = Main
+
+Instance.new("UICorner",SpeedBox).CornerRadius = UDim.new(0,7)
+
+local SpeedButton = Button("WalkSpeed: OFF",78)
+local JumpButton = Button("Infinite Jump: OFF",120)
+local PlatformButton = Button("Plataforma: OFF",162)
+local CloseButton = Button("Fechar GUI",204)
+
+--==================================================
+-- LOOP SPEED
+--==================================================
+
+SpeedBox.FocusLost:Connect(function()
+	local Value = tonumber(SpeedBox.Text)
+
+	if Value then
+		Speed = math.clamp(Value,1,500)
+	else
+		SpeedBox.Text = tostring(Speed)
+	end
+end)
+
+SpeedButton.MouseButton1Click:Connect(function()
+	SpeedEnabled = not SpeedEnabled
+
+	SpeedButton.Text = "WalkSpeed: " ..
+		(SpeedEnabled and "ON" or "OFF")
+end)
+
+-- LoopSpeed
+RunService.Heartbeat:Connect(function()
+	if SpeedEnabled and Humanoid then
+		Humanoid.WalkSpeed = Speed
+	end
+end)
+
+--==================================================
+-- INFINITE JUMP
+--==================================================
+
+JumpButton.MouseButton1Click:Connect(function()
+	InfJump = not InfJump
+
+	JumpButton.Text = "Infinite Jump: " ..
+		(InfJump and "ON" or "OFF")
+end)
+
+UIS.JumpRequest:Connect(function()
+	if InfJump and Humanoid then
+		Humanoid:ChangeState(
+			Enum.HumanoidStateType.Jumping
+		)
+	end
+end)
+
+--==================================================
+-- PLATAFORMA
+--==================================================
+
+local Platform
+
+local function CreatePlatform()
+	if Platform then
+		Platform:Destroy()
+	end
+
+	Platform = Instance.new("Part")
+
+	Platform.Name = "YUSAKI_FLY_PLATFORM"
+	Platform.Size = Vector3.new(7,0.5,7)
+
+	Platform.Anchored = true
+	Platform.CanCollide = true
+	Platform.CanTouch = false
+	Platform.CanQuery = false
+
+	Platform.Transparency = 0.15
+
+	Platform.Parent = workspace
+end
+
+local function RemovePlatform()
+	if Platform then
+		Platform:Destroy()
+		Platform = nil
+	end
+end
+
+PlatformButton.MouseButton1Click:Connect(function()
+	PlatformEnabled = not PlatformEnabled
+
+	PlatformButton.Text = "Plataforma: " ..
+		(PlatformEnabled and "ON" or "OFF")
+
+	if PlatformEnabled then
+		CreatePlatform()
+	else
+		RemovePlatform()
+	end
+end)
+
+--==================================================
+-- LOOP DA PLATAFORMA
+--==================================================
+
+RunService.RenderStepped:Connect(function()
+
+	if not PlatformEnabled then
+		return
+	end
+
+	if not Root then
+		return
+	end
+
+	if not Platform then
+		CreatePlatform()
+	end
+
+	-- Mantém a plataforma exatamente abaixo do player
+	Platform.CFrame = CFrame.new(
+		Root.Position.X,
+		Root.Position.Y - 3.5,
+		Root.Position.Z
+	)
+end)
+
+--==================================================
+-- ABRIR / FECHAR GUI
+--==================================================
+
+CloseButton.MouseButton1Click:Connect(function()
+	Main.Visible = false
+	OpenButton.Visible = true
+end)
+
+OpenButton.MouseButton1Click:Connect(function()
+	Main.Visible = true
+	OpenButton.Visible = false
+end)
+
+--==================================================
+-- RESPAWN
+--==================================================
+
+Player.CharacterAdded:Connect(function(char)
+
+	setupCharacter(char)
+
+	task.wait(0.5)
+
+	if PlatformEnabled then
+		CreatePlatform()
+	end
+
+end)
