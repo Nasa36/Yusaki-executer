@@ -1,18 +1,20 @@
 --[[
-    Hitbox, ESP Highlight e HealthBar Otimizados para Mobile (60 Players)
+    Hitbox, ESP Highlight, HealthBar Premium e Slider em Tempo Real (Mobile Anti-Lag)
 ]]
 
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
--- Variaveis Globais
-_G.HeadSize = 50
+-- Variáveis Globais
+_G.HeadSize = 25
 _G.HitboxEnabled = false
 _G.HighlightEnabled = false
 _G.HealthBarEnabled = false
 
--- Local de insercao da GUI
+-- Local de inserção da GUI
 local parentGui = CoreGui
 pcall(function()
     if not CoreGui:FindFirstChild("RobloxGui") then
@@ -30,10 +32,339 @@ ScreenGui.Name = "MobileMenuGui"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = parentGui
 
--- Botao Flutuante (Abrir/Fechar)
+-- Botão Flutuante (Abrir/Fechar)
 local OpenCloseBtn = Instance.new("TextButton")
 OpenCloseBtn.Size = UDim2.new(0, 80, 0, 35)
 OpenCloseBtn.Position = UDim2.new(0, 10, 0.4, 0)
+OpenCloseBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+OpenCloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenCloseBtn.Text = "Menu"
+OpenCloseBtn.Font = Enum.Font.SourceSansBold
+OpenCloseBtn.TextSize = 14
+OpenCloseBtn.Parent = ScreenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 8)
+btnCorner.Parent = OpenCloseBtn
+
+-- Janela do Menu
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 210, 0, 240)
+MainFrame.Position = UDim2.new(0.5, -105, 0.4, -120)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Visible = true
+MainFrame.Parent = ScreenGui
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 10)
+frameCorner.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.Text = "Painel [Hitbox Slider]"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 16
+Title.Parent = MainFrame
+
+-- Container dos Botões
+local Container = Instance.new("Frame")
+Container.Size = UDim2.new(1, -20, 1, -40)
+Container.Position = UDim2.new(0, 10, 0, 35)
+Container.BackgroundTransparency = 1
+Container.Parent = MainFrame
+
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = Container
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+UIList.Padding = UDim.new(0, 8)
+
+-- Função para Criar Botões Toggle
+local function CreateToggle(name, text, callback)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Text = text .. ": OFF"
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 13
+    btn.Parent = Container
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+
+    local state = false
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        if state then
+            btn.Text = text .. ": ON"
+            btn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+        else
+            btn.Text = text .. ": OFF"
+            btn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        end
+        callback(state)
+    end)
+    return btn
+end
+
+-- Função para Criar o Slider
+local function CreateSlider(name, minVal, maxVal, defaultVal, callback)
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Name = name
+    sliderFrame.Size = UDim2.new(1, 0, 0, 45)
+    sliderFrame.BackgroundTransparency = 1
+    sliderFrame.Parent = Container
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 18)
+    label.BackgroundTransparency = 1
+    label.Text = "Tamanho Hitbox: " .. tostring(defaultVal)
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.SourceSansBold
+    label.TextSize = 13
+    label.Parent = sliderFrame
+
+    local track = Instance.new("Frame")
+    track.Name = "Track"
+    track.Size = UDim2.new(1, 0, 0, 12)
+    track.Position = UDim2.new(0, 0, 0, 22)
+    track.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    track.Parent = sliderFrame
+
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(0, 6)
+    trackCorner.Parent = track
+
+    local fill = Instance.new("Frame")
+    fill.Name = "Fill"
+    local initialPercent = (defaultVal - minVal) / (maxVal - minVal)
+    fill.Size = UDim2.new(initialPercent, 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    fill.Parent = track
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 6)
+    fillCorner.Parent = fill
+
+    local dragging = false
+
+    local function updateInput(input)
+        local posX = input.Position.X
+        local trackPos = track.AbsolutePosition.X
+        local trackSize = track.AbsoluteSize.X
+
+        local percentage = math.clamp((posX - trackPos) / trackSize, 0, 1)
+        local value = math.floor(minVal + (maxVal - minVal) * percentage)
+
+        fill.Size = UDim2.new(percentage, 0, 1, 0)
+        label.Text = "Tamanho Hitbox: " .. tostring(value)
+        callback(value)
+    end
+
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            updateInput(input)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateInput(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+-- Lógica de Esconder/Mostrar Menu
+OpenCloseBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+--------------------------------------------------
+-- Sistema Otimizado de HealthBar Premium, ESP e Hitbox
+--------------------------------------------------
+
+local function ApplyESP(character)
+    if not character or character == LocalPlayer.Character then return end
+
+    local head = character:WaitForChild("Head", 5)
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    if not head or not humanoid then return end
+
+    -- Barra de Vida Premium Melhorada
+    if not head:FindFirstChild("HealthESP") then
+        local bb = Instance.new("BillboardGui")
+        bb.Name = "HealthESP"
+        bb.Adornee = head
+        bb.Size = UDim2.new(0, 60, 0, 12)
+        bb.StudsOffset = Vector3.new(0, 2.8, 0)
+        bb.AlwaysOnTop = true
+        bb.Enabled = _G.HealthBarEnabled
+
+        -- Fundo da Barra
+        local bg = Instance.new("Frame")
+        bg.Name = "BG"
+        bg.Size = UDim2.new(1, 0, 1, 0)
+        bg.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+        bg.BackgroundTransparency = 0.2
+        bg.BorderSizePixel = 0
+        bg.Parent = bb
+
+        local bgCorner = Instance.new("UICorner")
+        bgCorner.CornerRadius = UDim.new(0, 4)
+        bgCorner.Parent = bg
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(0, 0, 0)
+        stroke.Thickness = 1.2
+        stroke.Parent = bg
+
+        -- Preenchimento da Barra
+        local fill = Instance.new("Frame")
+        fill.Name = "Fill"
+        fill.Size = UDim2.new(1, 0, 1, 0)
+        fill.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+        fill.BorderSizePixel = 0
+        fill.Parent = bg
+
+        local fillCorner = Instance.new("UICorner")
+        fillCorner.CornerRadius = UDim.new(0, 4)
+        fillCorner.Parent = fill
+
+        -- Texto de HP Numérico
+        local hpText = Instance.new("TextLabel")
+        hpText.Name = "HPText"
+        hpText.Size = UDim2.new(1, 0, 1, 0)
+        hpText.BackgroundTransparency = 1
+        hpText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        hpText.Font = Enum.Font.SourceSansBold
+        hpText.TextSize = 10
+        hpText.TextStrokeTransparency = 0.4
+        hpText.Parent = bg
+
+        bb.Parent = head
+
+        -- Configuração de Animação Suave (Tween)
+        local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+        local function updateHealth()
+            if not humanoid or humanoid.MaxHealth <= 0 then return end
+
+            local hpPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+            -- Transição dinâmica de cor: Verde (0.35 HSV) -> Vermelho (0.0 HSV)
+            local targetColor = Color3.fromHSV(hpPercent * 0.35, 0.9, 1)
+
+            -- Anima o tamanho e a cor da barra suavemente
+            TweenService:Create(fill, tweenInfo, {
+                Size = UDim2.new(hpPercent, 0, 1, 0),
+                BackgroundColor3 = targetColor
+            }):Play()
+
+            hpText.Text = math.floor(humanoid.Health) .. " / " .. math.floor(humanoid.MaxHealth)
+        end
+
+        humanoid.HealthChanged:Connect(updateHealth)
+        humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(updateHealth)
+        updateHealth()
+    end
+
+    -- ESP Highlight
+    if not character:FindFirstChild("HighlightESP") then
+        local hl = Instance.new("Highlight")
+        hl.Name = "HighlightESP"
+        hl.FillColor = Color3.fromRGB(255, 0, 0)
+        hl.FillTransparency = 0.5
+        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+        hl.OutlineTransparency = 0
+        hl.Enabled = _G.HighlightEnabled
+        hl.Parent = character
+    end
+end
+
+-- Configura os jogadores no jogo
+local function SetupPlayer(player)
+    if player == LocalPlayer then return end
+    if player.Character then
+        task.spawn(ApplyESP, player.Character)
+    end
+    player.CharacterAdded:Connect(function(char)
+        task.spawn(ApplyESP, char)
+    end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    SetupPlayer(player)
+end
+Players.PlayerAdded:Connect(SetupPlayer)
+
+--------------------------------------------------
+-- Eventos dos Botões e Slider da GUI
+--------------------------------------------------
+
+CreateToggle("HitboxBtn", "Hitbox Expander", function(state)
+    _G.HitboxEnabled = state
+end)
+
+CreateSlider("HitboxSlider", 2, 100, _G.HeadSize, function(val)
+    _G.HeadSize = val
+end)
+
+CreateToggle("HighlightBtn", "ESP Highlight", function(state)
+    _G.HighlightEnabled = state
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("HighlightESP") then
+            player.Character.HighlightESP.Enabled = state
+        end
+    end
+end)
+
+CreateToggle("HealthBtn", "Barra de Vida", function(state)
+    _G.HealthBarEnabled = state
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("Head") then
+            local bb = player.Character.Head:FindFirstChild("HealthESP")
+            if bb then bb.Enabled = state end
+        end
+    end
+end)
+
+--------------------------------------------------
+-- Loop Otimizado para Aplicar Hitbox
+--------------------------------------------------
+
+task.spawn(function()
+    while task.wait(0.2) do
+        if _G.HitboxEnabled then
+            local targetSize = Vector3.new(_G.HeadSize, _G.HeadSize, _G.HeadSize)
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp and hrp.Size ~= targetSize then
+                        pcall(function()
+                            hrp.Size = targetSize
+                            hrp.Transparency = 0.7
+                            hrp.BrickColor = BrickColor.new("Really blue")
+                            hrp.Material = Enum.Material.Neon
+                            hrp.CanCollide = false
+                        end)
+                    end
+                end
+            end
+        end
+    end
+end)
 OpenCloseBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 OpenCloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 OpenCloseBtn.Text = "Menu"
