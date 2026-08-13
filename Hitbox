@@ -1,39 +1,245 @@
---// YUSAKI MINI ESP HUB
---// Roblox Studio
---// Hitbox + Health Bar + ESP Name + Highlight
-
-_G.HeadSize = 10
-_G.HitboxEnabled = true
-_G.HealthEnabled = true
-_G.NameEnabled = true
-_G.HighlightEnabled = true
+--[[
+    Hitbox, ESP Highlight e HealthBar Otimizados para Mobile (60 Players)
+]]
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
---==================================================
--- GUI
---==================================================
+-- Variaveis Globais
+_G.HeadSize = 50
+_G.HitboxEnabled = false
+_G.HighlightEnabled = false
+_G.HealthBarEnabled = false
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "YusakiMiniHub"
-gui.ResetOnSpawn = false
-gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+-- Local de insercao da GUI
+local parentGui = CoreGui
+pcall(function()
+    if not CoreGui:FindFirstChild("RobloxGui") then
+        parentGui = LocalPlayer:WaitForChild("PlayerGui")
+    end
+end)
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 210, 0, 190)
-frame.Position = UDim2.new(0.5, -105, 0.5, -95)
-frame.BackgroundColor3 = Color3.fromRGB(22,22,22)
-frame.BorderSizePixel = 0
-frame.Parent = gui
+if parentGui:FindFirstChild("MobileMenuGui") then
+    parentGui.MobileMenuGui:Destroy()
+end
 
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0,10)
+-- ScreenGui Principal
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MobileMenuGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = parentGui
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1,0,0,30)
+-- Botao Flutuante (Abrir/Fechar)
+local OpenCloseBtn = Instance.new("TextButton")
+OpenCloseBtn.Size = UDim2.new(0, 80, 0, 35)
+OpenCloseBtn.Position = UDim2.new(0, 10, 0.4, 0)
+OpenCloseBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+OpenCloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenCloseBtn.Text = "Menu"
+OpenCloseBtn.Font = Enum.Font.SourceSansBold
+OpenCloseBtn.TextSize = 14
+OpenCloseBtn.Parent = ScreenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 8)
+btnCorner.Parent = OpenCloseBtn
+
+-- Janela do Menu
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 200, 0, 180)
+MainFrame.Position = UDim2.new(0.5, -100, 0.4, -90)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Visible = true
+MainFrame.Parent = ScreenGui
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 10)
+frameCorner.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.Text = "Painel [Anti-Lag]"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 16
+Title.Parent = MainFrame
+
+-- Container dos Botoes
+local Container = Instance.new("Frame")
+Container.Size = UDim2.new(1, -20, 1, -40)
+Container.Position = UDim2.new(0, 10, 0, 35)
+Container.BackgroundTransparency = 1
+Container.Parent = MainFrame
+
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = Container
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+UIList.Padding = UDim.new(0, 8)
+
+-- Função Auxiliar para Criar Botões Toggle
+local function CreateToggle(name, text, callback)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Text = text .. ": OFF"
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 13
+    btn.Parent = Container
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+
+    local state = false
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        if state then
+            btn.Text = text .. ": ON"
+            btn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+        else
+            btn.Text = text .. ": OFF"
+            btn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        end
+        callback(state)
+    end)
+    return btn
+end
+
+-- Lógica de Esconder/Mostrar Menu
+OpenCloseBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+--------------------------------------------------
+-- Sitema Otimizado de ESP / HealthBar / Hitbox
+--------------------------------------------------
+
+local function ApplyESP(character)
+    if not character or character == LocalPlayer.Character then return end
+
+    local head = character:WaitForChild("Head", 5)
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    if not head or not humanoid then return end
+
+    -- 1. Barra de Vida (BillboardGui)
+    if not head:FindFirstChild("HealthESP") then
+        local bb = Instance.new("BillboardGui")
+        bb.Name = "HealthESP"
+        bb.Adornee = head
+        bb.Size = UDim2.new(0, 45, 0, 5)
+        bb.StudsOffset = Vector3.new(0, 2.5, 0)
+        bb.AlwaysOnTop = true
+        bb.Enabled = _G.HealthBarEnabled
+
+        local bg = Instance.new("Frame", bb)
+        bg.Size = UDim2.new(1, 0, 1, 0)
+        bg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        bg.BorderSizePixel = 0
+
+        local fill = Instance.new("Frame", bg)
+        fill.Name = "Fill"
+        fill.Size = UDim2.new(1, 0, 1, 0)
+        fill.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+        fill.BorderSizePixel = 0
+
+        bb.Parent = head
+
+        -- Atualiza barra de vida SOMENTE quando a vida muda
+        local function updateHealth()
+            local hpPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+            fill.Size = UDim2.new(hpPercent, 0, 1, 0)
+            fill.BackgroundColor3 = Color3.fromHSV(hpPercent * 0.33, 1, 1)
+        end
+        humanoid.HealthChanged:Connect(updateHealth)
+        updateHealth()
+    end
+
+    -- 2. ESP Highlight
+    if not character:FindFirstChild("HighlightESP") then
+        local hl = Instance.new("Highlight")
+        hl.Name = "HighlightESP"
+        hl.FillColor = Color3.fromRGB(255, 0, 0)
+        hl.FillTransparency = 0.5
+        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+        hl.OutlineTransparency = 0
+        hl.Enabled = _G.HighlightEnabled
+        hl.Parent = character
+    end
+end
+
+-- Configura os jogadores no jogo
+local function SetupPlayer(player)
+    if player == LocalPlayer then return end
+    if player.Character then
+        task.spawn(ApplyESP, player.Character)
+    end
+    player.CharacterAdded:Connect(function(char)
+        task.spawn(ApplyESP, char)
+    end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    SetupPlayer(player)
+end
+Players.PlayerAdded:Connect(SetupPlayer)
+
+--------------------------------------------------
+-- Eventos dos Botoes da GUI
+--------------------------------------------------
+
+CreateToggle("HitboxBtn", "Hitbox Expander", function(state)
+    _G.HitboxEnabled = state
+end)
+
+CreateToggle("HighlightBtn", "ESP Highlight", function(state)
+    _G.HighlightEnabled = state
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("HighlightESP") then
+            player.Character.HighlightESP.Enabled = state
+        end
+    end
+end)
+
+CreateToggle("HealthBtn", "Barra de Vida", function(state)
+    _G.HealthBarEnabled = state
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("Head") then
+            local bb = player.Character.Head:FindFirstChild("HealthESP")
+            if bb then bb.Enabled = state end
+        end
+    end
+end)
+
+--------------------------------------------------
+-- Loop Otimizado para Hitbox (Intervalo Inteligente)
+--------------------------------------------------
+
+task.spawn(function()
+    while task.wait(0.25) do -- Roda apenas 4 vezes por segundo (Suficiente e sem Lag)
+        if _G.HitboxEnabled then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp and hrp.Size ~= Vector3.new(_G.HeadSize, _G.HeadSize, _G.HeadSize) then
+                        pcall(function()
+                            hrp.Size = Vector3.new(_G.HeadSize, _G.HeadSize, _G.HeadSize)
+                            hrp.Transparency = 0.7
+                            hrp.BrickColor = BrickColor.new("Really blue")
+                            hrp.Material = Enum.Material.Neon
+                            hrp.CanCollide = false
+                        end)
+                    end
+                end
+            end
+        end
+    end
+end)
 title.BackgroundTransparency = 1
 title.Text = "YUSAKI"
 title.TextColor3 = Color3.new(1,1,1)
