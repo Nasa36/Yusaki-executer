@@ -1,854 +1,500 @@
---// YUSAKI SCRIPT HUB - COMPACT
---// Mobile / PC | Native Roblox UI
-
-repeat task.wait() until game:IsLoaded()
+--// =========================================================
+--// ULTIMATE LITE HUB - V2 (RGB BORDERS EDITION)
+--// =========================================================
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local GUI_NAME = "YusakiScriptHub"
-
-local Existing = PlayerGui:FindFirstChild(GUI_NAME)
-if Existing then
-	Existing:Destroy()
+-- Destruir interface antiga se existir
+local GUI_NAME = "LiteHubRGBUI"
+if PlayerGui:FindFirstChild(GUI_NAME) then
+    PlayerGui[GUI_NAME]:Destroy()
 end
 
---// Script Library
-local Scripts = {
-	{
-		Name = "Loop",
-		Description = "YUSAKI Loop",
-		Type = "Loadstring",
-		Category = "Utility",
-		Code = [[
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/Nasa36/Yusaki-executer/refs/heads/main/Loop"))()
-		]]
-	},
+-- Tabela para guardar as bordas que terão o efeito RGB
+local RGBStrokes = {}
 
-	{
-		Name = "Plataform",
-		Description = "YUSAKI Plataform",
-		Type = "Loadstring",
-		Category = "Movement",
-		Code = [[
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/Nasa36/Yusaki-executer/refs/heads/main/Plataform"))()
-		]]
-	}
+--// =========================================================
+--// ESTADOS DAS FUNÇÕES
+--// =========================================================
+local Features = {
+    Speed = { Enabled = false, Value = 16 },
+    InfJump = { Enabled = false, Power = 50 },
+    Platform = { Enabled = false, Size = 8, Height = -3.5 }
 }
 
---// Configuração compacta
-local Config = {
-	Width = 285,
-	Height = 325,
+--// =========================================================
+--// SCREEN GUI
+--// =========================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = GUI_NAME
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
 
-	AnimationTime = 0.18,
-
-	Background = Color3.fromRGB(18, 18, 22),
-	Secondary = Color3.fromRGB(25, 25, 30),
-	Card = Color3.fromRGB(30, 30, 36),
-	Accent = Color3.fromRGB(125, 85, 255),
-
-	Text = Color3.fromRGB(245, 245, 248),
-	SubText = Color3.fromRGB(160, 160, 170),
-
-	Success = Color3.fromRGB(80, 210, 130),
-	Error = Color3.fromRGB(235, 75, 75)
-}
-
---// Helpers
-local function New(className, properties, parent)
-	local object = Instance.new(className)
-
-	for property, value in pairs(properties or {}) do
-		object[property] = value
-	end
-
-	object.Parent = parent
-	return object
+-- Helpers de Design
+local function ApplyCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius)
+    corner.Parent = parent
+    return corner
 end
 
-local function Corner(parent, radius)
-	return New("UICorner", {
-		CornerRadius = UDim.new(0, radius)
-	}, parent)
+local function ApplyStroke(parent, color, transparency, thickness, isRGB)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color or Color3.fromRGB(80, 85, 110)
+    stroke.Transparency = transparency or 0
+    stroke.Thickness = thickness or 1.5
+    stroke.Parent = parent
+    
+    if isRGB then
+        table.insert(RGBStrokes, stroke)
+    end
+    
+    return stroke
 end
 
-local function Stroke(parent, color, transparency)
-	return New("UIStroke", {
-		Color = color,
-		Transparency = transparency or 0,
-		Thickness = 1
-	}, parent)
+local function ApplyGradient(parent, color1, color2, angle)
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, color1),
+        ColorSequenceKeypoint.new(1, color2)
+    }
+    gradient.Rotation = angle or 45
+    gradient.Parent = parent
+    return gradient
 end
 
-local function Tween(object, properties, duration)
-	local animation = TweenService:Create(
-		object,
-		TweenInfo.new(
-			duration or Config.AnimationTime,
-			Enum.EasingStyle.Quart,
-			Enum.EasingDirection.Out
-		),
-		properties
-	)
+--// =========================================================
+--// SISTEMA ARRASTÁVEL (TOUCH & MOUSE)
+--// =========================================================
+local function MakeDraggable(guiFrame, dragHandle)
+    dragHandle = dragHandle or guiFrame
+    local dragging = false
+    local dragStart, startPos
+    local moved = false
 
-	animation:Play()
-	return animation
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            moved = false
+            dragStart = input.Position
+            startPos = guiFrame.Position
+
+            local con; con = UserInputService.InputEnded:Connect(function(endInput)
+                if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                    dragging = false
+                    con:Disconnect()
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            if delta.Magnitude > 6 then
+                moved = true
+            end
+            guiFrame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    return function() return moved end
 end
 
---// GUI
-local ScreenGui = New("ScreenGui", {
-	Name = GUI_NAME,
-	ResetOnSpawn = false,
-	IgnoreGuiInset = true,
-	ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-}, PlayerGui)
-
---// Main
-local Main = New("Frame", {
-	Name = "Main",
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Size = UDim2.fromOffset(Config.Width, Config.Height),
-	Position = UDim2.fromScale(0.5, 0.5),
-	BackgroundColor3 = Config.Background,
-	BorderSizePixel = 0,
-	ClipsDescendants = true
-}, ScreenGui)
-
-Corner(Main, 11)
-Stroke(Main, Color3.fromRGB(55, 55, 65), 0.35)
-
---// TopBar
-local TopBar = New("Frame", {
-	Name = "TopBar",
-	Size = UDim2.new(1, 0, 0, 44),
-	BackgroundColor3 = Config.Secondary,
-	BorderSizePixel = 0
-}, Main)
-
-local Title = New("TextLabel", {
-	BackgroundTransparency = 1,
-	Position = UDim2.fromOffset(12, 4),
-	Size = UDim2.new(1, -60, 0, 21),
-	Font = Enum.Font.GothamBold,
-	Text = "YUSAKI HUB",
-	TextSize = 14,
-	TextColor3 = Config.Text,
-	TextXAlignment = Enum.TextXAlignment.Left
-}, TopBar)
-
-local Subtitle = New("TextLabel", {
-	BackgroundTransparency = 1,
-	Position = UDim2.fromOffset(12, 23),
-	Size = UDim2.new(1, -60, 0, 15),
-	Font = Enum.Font.Gotham,
-	Text = "Script Library",
-	TextSize = 9,
-	TextColor3 = Config.SubText,
-	TextXAlignment = Enum.TextXAlignment.Left
-}, TopBar)
-
-local CloseButton = New("TextButton", {
-	AnchorPoint = Vector2.new(1, 0.5),
-	Position = UDim2.new(1, -9, 0.5, 0),
-	Size = UDim2.fromOffset(27, 27),
-	BackgroundColor3 = Color3.fromRGB(40, 40, 46),
-	BorderSizePixel = 0,
-	AutoButtonColor = false,
-	Font = Enum.Font.GothamBold,
-	Text = "×",
-	TextSize = 18,
-	TextColor3 = Config.Text
-}, TopBar)
-
-Corner(CloseButton, 7)
-
---// Search
-local SearchContainer = New("Frame", {
-	Position = UDim2.fromOffset(10, 53),
-	Size = UDim2.new(1, -20, 0, 34),
-	BackgroundColor3 = Config.Secondary,
-	BorderSizePixel = 0
-}, Main)
-
-Corner(SearchContainer, 8)
-Stroke(SearchContainer, Color3.fromRGB(50, 50, 58), 0.45)
-
-local SearchIcon = New("TextLabel", {
-	BackgroundTransparency = 1,
-	Position = UDim2.fromOffset(9, 0),
-	Size = UDim2.fromOffset(20, 34),
-	Font = Enum.Font.Gotham,
-	Text = "⌕",
-	TextSize = 18,
-	TextColor3 = Config.SubText
-}, SearchContainer)
-
-local SearchBox = New("TextBox", {
-	BackgroundTransparency = 1,
-	Position = UDim2.fromOffset(31, 0),
-	Size = UDim2.new(1, -39, 1, 0),
-	ClearTextOnFocus = false,
-	Font = Enum.Font.Gotham,
-	PlaceholderText = "Pesquisar scripts...",
-	PlaceholderColor3 = Config.SubText,
-	Text = "",
-	TextSize = 11,
-	TextColor3 = Config.Text,
-	TextXAlignment = Enum.TextXAlignment.Left
-}, SearchContainer)
-
---// Categories
-local CategoryBar = New("ScrollingFrame", {
-	Position = UDim2.fromOffset(10, 94),
-	Size = UDim2.new(1, -20, 0, 26),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	ScrollBarThickness = 0,
-	ScrollingDirection = Enum.ScrollingDirection.X,
-	AutomaticCanvasSize = Enum.AutomaticSize.X
-}, Main)
-
-local CategoryLayout = New("UIListLayout", {
-	FillDirection = Enum.FillDirection.Horizontal,
-	VerticalAlignment = Enum.VerticalAlignment.Center,
-	Padding = UDim.new(0, 5)
-}, CategoryBar)
-
---// Script List
-local ScriptList = New("ScrollingFrame", {
-	Name = "ScriptList",
-	Position = UDim2.fromOffset(10, 127),
-	Size = UDim2.new(1, -20, 1, -137),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	ScrollBarThickness = 3,
-	ScrollBarImageColor3 = Config.Accent,
-	CanvasSize = UDim2.new(),
-	AutomaticCanvasSize = Enum.AutomaticSize.Y
-}, Main)
-
-local ScriptLayout = New("UIListLayout", {
-	FillDirection = Enum.FillDirection.Vertical,
-	HorizontalAlignment = Enum.HorizontalAlignment.Center,
-	Padding = UDim.new(0, 6)
-}, ScriptList)
-
-New("UIPadding", {
-	PaddingTop = UDim.new(0, 2),
-	PaddingBottom = UDim.new(0, 6)
-}, ScriptList)
-
-local EmptyLabel = New("TextLabel", {
-	Name = "Empty",
-	Visible = false,
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.5),
-	Size = UDim2.new(1, -20, 0, 30),
-	BackgroundTransparency = 1,
-	Font = Enum.Font.Gotham,
-	Text = "Nenhum script encontrado.",
-	TextSize = 11,
-	TextColor3 = Config.SubText,
-	TextWrapped = true
-}, ScriptList)
-
---// Floating Y
-local FloatingButton = New("TextButton", {
-	Name = "FloatingButton",
-	AnchorPoint = Vector2.new(1, 1),
-	Position = UDim2.new(1, -14, 1, -14),
-	Size = UDim2.fromOffset(43, 43),
-	BackgroundColor3 = Config.Accent,
-	BorderSizePixel = 0,
-	AutoButtonColor = false,
-	Font = Enum.Font.GothamBold,
-	Text = "Y",
-	TextSize = 17,
-	TextColor3 = Color3.fromRGB(255, 255, 255),
-	ZIndex = 20
-}, ScreenGui)
-
-Corner(FloatingButton, 12)
-
---// State
-local HubOpen = true
-local CurrentCategory = "All"
-
---// Drag
-local function MakeDraggable(gui, handle)
-	local dragging = false
-	local dragStart
-	local startPosition
-
-	handle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-
-			dragging = true
-			dragStart = input.Position
-			startPosition = gui.Position
-
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if not dragging then
-			return
-		end
-
-		if input.UserInputType ~= Enum.UserInputType.MouseMovement
-			and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
-		end
-
-		local delta = input.Position - dragStart
-
-		gui.Position = UDim2.new(
-			startPosition.X.Scale,
-			startPosition.X.Offset + delta.X,
-			startPosition.Y.Scale,
-			startPosition.Y.Offset + delta.Y
-		)
-	end)
-end
-
-MakeDraggable(Main, TopBar)
-MakeDraggable(FloatingButton)
-
---// Feedback
-local function ButtonFeedback(button)
-	local original = button.BackgroundColor3
-
-	Tween(button, {
-		BackgroundColor3 = Config.Accent:Lerp(Color3.new(1, 1, 1), 0.18)
-	}, 0.08)
-
-	task.delay(0.08, function()
-		if button and button.Parent then
-			Tween(button, {
-				BackgroundColor3 = original
-			}, 0.12)
-		end
-	end)
-end
-
---// Executor
-local function ExecuteScript(scriptData)
-	if not scriptData or not scriptData.Code then
-		return false, "Código do script não encontrado."
-	end
-
-	if type(loadstring) ~= "function" then
-		return false, "Loadstring não está disponível neste ambiente."
-	end
-
-	local success, compiled = pcall(loadstring, scriptData.Code)
-
-	if not success or type(compiled) ~= "function" then
-		return false, tostring(compiled)
-	end
-
-	local executed, result = pcall(compiled)
-
-	if not executed then
-		return false, tostring(result)
-	end
-
-	return true, result
-end
-
---// Cards
-local function CreateCard(scriptData)
-	local Card = New("Frame", {
-		Name = scriptData.Name,
-		Size = UDim2.new(1, -4, 0, 70),
-		BackgroundColor3 = Config.Card,
-		BorderSizePixel = 0
-	}, ScriptList)
-
-	Corner(Card, 9)
-	Stroke(Card, Color3.fromRGB(55, 55, 65), 0.55)
-
-	New("TextLabel", {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(10, 8),
-		Size = UDim2.new(1, -105, 0, 20),
-		Font = Enum.Font.GothamBold,
-		Text = scriptData.Name,
-		TextSize = 12,
-		TextColor3 = Config.Text,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		TextXAlignment = Enum.TextXAlignment.Left
-	}, Card)
-
-	New("TextLabel", {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(10, 30),
-		Size = UDim2.new(1, -105, 0, 22),
-		Font = Enum.Font.Gotham,
-		Text = scriptData.Description or "",
-		TextSize = 9,
-		TextColor3 = Config.SubText,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		TextXAlignment = Enum.TextXAlignment.Left
-	}, Card)
-
-	local Status = New("Frame", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -10, 0, 7),
-		Size = UDim2.fromOffset(5, 5),
-		BackgroundColor3 = Config.SubText,
-		BorderSizePixel = 0
-	}, Card)
-
-	Corner(Status, 10)
-
-	local ExecuteButton = New("TextButton", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -9, 0.5, 0),
-		Size = UDim2.fromOffset(78, 31),
-		BackgroundColor3 = Config.Accent,
-		BorderSizePixel = 0,
-		AutoButtonColor = false,
-		Font = Enum.Font.GothamBold,
-		Text = "EXECUTAR",
-		TextSize = 9,
-		TextColor3 = Color3.fromRGB(255, 255, 255)
-	}, Card)
-
-	Corner(ExecuteButton, 7)
-
-	ExecuteButton.MouseEnter:Connect(function()
-		Tween(ExecuteButton, {
-			BackgroundColor3 = Config.Accent:Lerp(Color3.new(1, 1, 1), 0.12)
-		}, 0.1)
-	end)
-
-	ExecuteButton.MouseLeave:Connect(function()
-		Tween(ExecuteButton, {
-			BackgroundColor3 = Config.Accent
-		}, 0.1)
-	end)
-
-	ExecuteButton.MouseButton1Click:Connect(function()
-		ButtonFeedback(ExecuteButton)
-
-		ExecuteButton.Text = "EXECUTANDO..."
-		Status.BackgroundColor3 = Config.Accent
-
-		local success, err = ExecuteScript(scriptData)
-
-		if success then
-			ExecuteButton.Text = "SUCESSO"
-			Status.BackgroundColor3 = Config.Success
-
-			task.delay(1.2, function()
-				if ExecuteButton.Parent then
-					ExecuteButton.Text = "EXECUTAR"
-				end
-			end)
-		else
-			ExecuteButton.Text = "ERRO"
-			Status.BackgroundColor3 = Config.Error
-
-			warn("[YUSAKI HUB] " .. tostring(err))
-
-			task.delay(1.5, function()
-				if ExecuteButton.Parent then
-					ExecuteButton.Text = "EXECUTAR"
-				end
-			end)
-		end
-	end)
-end
-
---// Refresh
-local function RefreshScripts()
-	for _, child in ipairs(ScriptList:GetChildren()) do
-		if child:IsA("Frame") and child ~= EmptyLabel then
-			child:Destroy()
-		end
-	end
-
-	local query = string.lower(SearchBox.Text)
-	local count = 0
-
-	for _, scriptData in ipairs(Scripts) do
-		local categoryMatch =
-			CurrentCategory == "All"
-			or scriptData.Category == CurrentCategory
-
-		local nameMatch =
-			query == ""
-			or string.find(string.lower(scriptData.Name), query, 1, true)
-
-		local descriptionMatch =
-			query == ""
-			or string.find(
-				string.lower(scriptData.Description or ""),
-				query,
-				1,
-				true
-			)
-
-		if categoryMatch and (nameMatch or descriptionMatch) then
-			CreateCard(scriptData)
-			count += 1
-		end
-	end
-
-	EmptyLabel.Visible = count == 0
-end
-
---// Categories
-local function CreateCategory(name)
-	local Button = New("TextButton", {
-		Name = name,
-		Size = UDim2.fromOffset(math.max(48, #name * 7 + 18), 25),
-		BackgroundColor3 = name == "All" and Config.Accent or Config.Secondary,
-		BorderSizePixel = 0,
-		AutoButtonColor = false,
-		Font = Enum.Font.GothamBold,
-		Text = name,
-		TextSize = 9,
-		TextColor3 = Config.Text
-	}, CategoryBar)
-
-	Corner(Button, 7)
-
-	Button.MouseButton1Click:Connect(function()
-		CurrentCategory = name
-
-		for _, child in ipairs(CategoryBar:GetChildren()) do
-			if child:IsA("TextButton") then
-				Tween(child, {
-					BackgroundColor3 =
-						child.Name == CurrentCategory
-						and Config.Accent
-						or Config.Secondary
-				}, 0.12)
-			end
-		end
-
-		RefreshScripts()
-	end)
-end
-
-for _, category in ipairs({
-	"All",
-	"Utility",
-	"Automation",
-	"Movement",
-	"Other"
-}) do
-	CreateCategory(category)
-end
-
---// Search
-SearchBox:GetPropertyChangedSignal("Text"):Connect(RefreshScripts)
-
---// Open / Close
-local function SetHubVisible(visible)
-	HubOpen = visible
-
-	if visible then
-		Main.Visible = true
-		Main.Size = UDim2.fromOffset(
-			Config.Width - 15,
-			Config.Height - 15
-		)
-
-		Tween(Main, {
-			Size = UDim2.fromOffset(
-				Config.Width,
-				Config.Height
-			)
-		})
-	else
-		Tween(Main, {
-			Size = UDim2.fromOffset(
-				Config.Width - 15,
-				Config.Height - 15
-			)
-		})
-
-		task.delay(Config.AnimationTime, function()
-			if not HubOpen then
-				Main.Visible = false
-			end
-		end)
-	end
-end
-
-CloseButton.MouseButton1Click:Connect(function()
-	ButtonFeedback(CloseButton)
-	SetHubVisible(false)
-end)
-
-FloatingButton.MouseButton1Click:Connect(function()
-	ButtonFeedback(FloatingButton)
-	SetHubVisible(not HubOpen)
-end)
-
---// Initial
-RefreshScripts()
-Main.Visible = true
-FloatingButton.Visible = true
-
-print("[YUSAKI HUB] Compact version loaded.")
-local Gui = Instance.new("ScreenGui")
-Gui.Name = "YUSAKI_MINI"
-Gui.ResetOnSpawn = false
-Gui.Parent = Player:WaitForChild("PlayerGui")
-
+--// =========================================================
+--// MAIN FRAME (MODERNO & BORDA RGB)
+--// =========================================================
 local Main = Instance.new("Frame")
-Main.Size = UDim2.fromOffset(230, 245)
-Main.Position = UDim2.new(0.5, -115, 0.5, -122)
-Main.BackgroundColor3 = Color3.fromRGB(25,25,30)
+Main.Name = "Main"
+Main.Size = UDim2.fromOffset(400, 150)
+Main.Position = UDim2.new(0.5, -200, 0.5, -75)
+Main.BackgroundColor3 = Color3.fromRGB(15, 17, 23)
 Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true
-Main.Parent = Gui
+Main.ClipsDescendants = true
+Main.Parent = ScreenGui
 
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0,10)
+ApplyCorner(Main, 12)
+-- Borda RGB do Menu Principal (isRGB = true)
+ApplyStroke(Main, Color3.fromRGB(255, 255, 255), 0, 2, true)
+
+-- Barra Superior
+local TopBar = Instance.new("Frame")
+TopBar.Name = "TopBar"
+TopBar.Size = UDim2.new(1, 0, 0, 34)
+TopBar.BackgroundColor3 = Color3.fromRGB(22, 25, 35)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = Main
+
+ApplyGradient(TopBar, Color3.fromRGB(30, 34, 48), Color3.fromRGB(20, 22, 32), 90)
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1,-40,0,35)
-Title.Position = UDim2.fromOffset(10,0)
+Title.Size = UDim2.new(1, -60, 1, 0)
+Title.Position = UDim2.fromOffset(12, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "YUSAKI MINI"
-Title.TextColor3 = Color3.new(1,1,1)
-Title.TextSize = 17
 Title.Font = Enum.Font.GothamBold
+Title.Text = "LITE HUB <font color=\"#818CF8\">⚡ RGB</font>"
+Title.RichText = true
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 13
 Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = Main
+Title.Parent = TopBar
 
---==================================================
--- BOTÃO FLUTUANTE
---==================================================
+-- Botão de Fechar
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.fromOffset(22, 22)
+CloseBtn.Position = UDim2.new(1, -28, 0.5, -11)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+CloseBtn.Text = "×"
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.AutoButtonColor = false
+CloseBtn.Parent = TopBar
+ApplyCorner(CloseBtn, 6)
 
-local OpenButton = Instance.new("TextButton")
-OpenButton.Size = UDim2.fromOffset(50,50)
-OpenButton.Position = UDim2.new(0,15,0.5,0)
-OpenButton.BackgroundColor3 = Color3.fromRGB(35,35,42)
-OpenButton.Text = "≡"
-OpenButton.TextColor3 = Color3.new(1,1,1)
-OpenButton.TextSize = 25
-OpenButton.Font = Enum.Font.GothamBold
-OpenButton.Visible = false
-OpenButton.Active = true
-OpenButton.Draggable = true
-OpenButton.Parent = Gui
+-- Container Scroll Horizontal
+local Container = Instance.new("ScrollingFrame")
+Container.Size = UDim2.new(1, -16, 1, -42)
+Container.Position = UDim2.fromOffset(8, 38)
+Container.BackgroundTransparency = 1
+Container.BorderSizePixel = 0
+Container.ScrollBarThickness = 3
+Container.ScrollingDirection = Enum.ScrollingDirection.X
+Container.ScrollBarImageColor3 = Color3.fromRGB(99, 102, 241)
+Container.Parent = Main
 
-Instance.new("UICorner",OpenButton).CornerRadius = UDim.new(1,0)
+local Layout = Instance.new("UIListLayout")
+Layout.FillDirection = Enum.FillDirection.Horizontal
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Padding = UDim.new(0, 10)
+Layout.Parent = Container
 
---==================================================
--- FUNÇÃO BOTÃO
---==================================================
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    Container.CanvasSize = UDim2.fromOffset(Layout.AbsoluteContentSize.X + 10, 0)
+end)
 
-local function Button(text,y)
-	local B = Instance.new("TextButton")
+--// =========================================================
+--// BOTÃO FLUTUANTE (BORDA RGB)
+--// =========================================================
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "FloatingToggle"
+ToggleBtn.Size = UDim2.fromOffset(42, 42)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(22, 25, 35)
+ToggleBtn.Text = "⚡"
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.TextSize = 20
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.AutoButtonColor = false
+ToggleBtn.ZIndex = 100
+ToggleBtn.Parent = ScreenGui
 
-	B.Size = UDim2.new(1,-20,0,36)
-	B.Position = UDim2.fromOffset(10,y)
+ApplyCorner(ToggleBtn, 21)
+-- Borda RGB do Botão Flutuante (isRGB = true)
+ApplyStroke(ToggleBtn, Color3.fromRGB(255, 255, 255), 0, 2, true)
+ApplyGradient(ToggleBtn, Color3.fromRGB(30, 35, 55), Color3.fromRGB(18, 20, 30), 45)
 
-	B.BackgroundColor3 = Color3.fromRGB(45,45,55)
-	B.TextColor3 = Color3.new(1,1,1)
+local floatingMoved = MakeDraggable(ToggleBtn, ToggleBtn)
+MakeDraggable(Main, TopBar)
 
-	B.Text = text
-	B.TextSize = 13
-	B.Font = Enum.Font.GothamBold
+CloseBtn.MouseButton1Click:Connect(function()
+    Main.Visible = false
+end)
 
-	B.Parent = Main
+ToggleBtn.MouseButton1Click:Connect(function()
+    if not floatingMoved() then
+        Main.Visible = not Main.Visible
+    end
+end)
 
-	Instance.new("UICorner",B).CornerRadius = UDim.new(0,7)
+--// =========================================================
+--// COMPONENTES (CARDS, TOGGLE E SLIDER)
+--// =========================================================
+local function CreateCard(width)
+    local Card = Instance.new("Frame")
+    Card.Size = UDim2.fromOffset(width, 98)
+    Card.BackgroundColor3 = Color3.fromRGB(22, 25, 34)
+    Card.BorderSizePixel = 0
+    Card.Parent = Container
+    
+    ApplyCorner(Card, 10)
+    ApplyStroke(Card, Color3.fromRGB(45, 50, 68), 0.5)
 
-	return B
+    local CardPadding = Instance.new("UIPadding")
+    CardPadding.PaddingLeft = UDim.new(0, 8)
+    CardPadding.PaddingRight = UDim.new(0, 8)
+    CardPadding.PaddingTop = UDim.new(0, 6)
+    CardPadding.PaddingBottom = UDim.new(0, 6)
+    CardPadding.Parent = Card
+
+    local CardLayout = Instance.new("UIListLayout")
+    CardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    CardLayout.Padding = UDim.new(0, 6)
+    CardLayout.Parent = Card
+
+    return Card
 end
 
---==================================================
--- SPEED
---==================================================
+local function CreateHeader(card, titleText, defaultState, onCallback)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 20)
+    Frame.BackgroundTransparency = 1
+    Frame.Parent = card
 
-local SpeedBox = Instance.new("TextBox")
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -34, 1, 0)
+    Label.BackgroundTransparency = 1
+    Label.Font = Enum.Font.GothamBold
+    Label.Text = titleText
+    Label.TextColor3 = Color3.fromRGB(240, 242, 250)
+    Label.TextSize = 11
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
 
-SpeedBox.Size = UDim2.new(1,-20,0,32)
-SpeedBox.Position = UDim2.fromOffset(10,40)
+    local Switch = Instance.new("TextButton")
+    Switch.Size = UDim2.fromOffset(30, 16)
+    Switch.Position = UDim2.new(1, -30, 0.5, -8)
+    Switch.BackgroundColor3 = defaultState and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(40, 44, 58)
+    Switch.Text = ""
+    Switch.AutoButtonColor = false
+    Switch.Parent = Frame
+    ApplyCorner(Switch, 8)
 
-SpeedBox.BackgroundColor3 = Color3.fromRGB(40,40,48)
-SpeedBox.TextColor3 = Color3.new(1,1,1)
+    local Circle = Instance.new("Frame")
+    Circle.Size = UDim2.fromOffset(12, 12)
+    Circle.Position = defaultState and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
+    Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Circle.Parent = Switch
+    ApplyCorner(Circle, 6)
 
-SpeedBox.Text = "16"
-SpeedBox.PlaceholderText = "WalkSpeed"
-
-SpeedBox.TextSize = 13
-SpeedBox.Font = Enum.Font.Gotham
-
-SpeedBox.ClearTextOnFocus = false
-SpeedBox.Parent = Main
-
-Instance.new("UICorner",SpeedBox).CornerRadius = UDim.new(0,7)
-
-local SpeedButton = Button("WalkSpeed: OFF",78)
-local JumpButton = Button("Infinite Jump: OFF",120)
-local PlatformButton = Button("Plataforma: OFF",162)
-local CloseButton = Button("Fechar GUI",204)
-
---==================================================
--- LOOP SPEED
---==================================================
-
-SpeedBox.FocusLost:Connect(function()
-	local Value = tonumber(SpeedBox.Text)
-
-	if Value then
-		Speed = math.clamp(Value,1,500)
-	else
-		SpeedBox.Text = tostring(Speed)
-	end
-end)
-
-SpeedButton.MouseButton1Click:Connect(function()
-	SpeedEnabled = not SpeedEnabled
-
-	SpeedButton.Text = "WalkSpeed: " ..
-		(SpeedEnabled and "ON" or "OFF")
-end)
-
--- LoopSpeed
-RunService.Heartbeat:Connect(function()
-	if SpeedEnabled and Humanoid then
-		Humanoid.WalkSpeed = Speed
-	end
-end)
-
---==================================================
--- INFINITE JUMP
---==================================================
-
-JumpButton.MouseButton1Click:Connect(function()
-	InfJump = not InfJump
-
-	JumpButton.Text = "Infinite Jump: " ..
-		(InfJump and "ON" or "OFF")
-end)
-
-UIS.JumpRequest:Connect(function()
-	if InfJump and Humanoid then
-		Humanoid:ChangeState(
-			Enum.HumanoidStateType.Jumping
-		)
-	end
-end)
-
---==================================================
--- PLATAFORMA
---==================================================
-
-local Platform
-
-local function CreatePlatform()
-	if Platform then
-		Platform:Destroy()
-	end
-
-	Platform = Instance.new("Part")
-
-	Platform.Name = "YUSAKI_FLY_PLATFORM"
-	Platform.Size = Vector3.new(7,0.5,7)
-
-	Platform.Anchored = true
-	Platform.CanCollide = true
-	Platform.CanTouch = false
-	Platform.CanQuery = false
-
-	Platform.Transparency = 0.15
-
-	Platform.Parent = workspace
+    local active = defaultState
+    Switch.MouseButton1Click:Connect(function()
+        active = not active
+        TweenService:Create(Switch, TweenInfo.new(0.2), {
+            BackgroundColor3 = active and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(40, 44, 58)
+        }):Play()
+        TweenService:Create(Circle, TweenInfo.new(0.2), {
+            Position = active and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
+        }):Play()
+        onCallback(active)
+    end)
 end
 
-local function RemovePlatform()
-	if Platform then
-		Platform:Destroy()
-		Platform = nil
-	end
+local function CreateSlider(card, titleText, minVal, maxVal, defaultVal, onCallback)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 28)
+    Frame.BackgroundTransparency = 1
+    Frame.Parent = card
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0.6, 0, 0, 12)
+    Label.BackgroundTransparency = 1
+    Label.Font = Enum.Font.GothamMedium
+    Label.Text = titleText
+    Label.TextColor3 = Color3.fromRGB(150, 155, 175)
+    Label.TextSize = 9
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+
+    local ValueText = Instance.new("TextLabel")
+    ValueText.Size = UDim2.new(0.4, 0, 0, 12)
+    ValueText.Position = UDim2.new(0.6, 0, 0, 0)
+    ValueText.BackgroundTransparency = 1
+    ValueText.Font = Enum.Font.GothamBold
+    ValueText.Text = tostring(defaultVal)
+    ValueText.TextColor3 = Color3.fromRGB(129, 140, 248)
+    ValueText.TextSize = 9
+    ValueText.TextXAlignment = Enum.TextXAlignment.Right
+    ValueText.Parent = Frame
+
+    local Track = Instance.new("TextButton")
+    Track.Size = UDim2.new(1, 0, 0, 5)
+    Track.Position = UDim2.new(0, 0, 0, 16)
+    Track.BackgroundColor3 = Color3.fromRGB(35, 38, 50)
+    Track.Text = ""
+    Track.AutoButtonColor = false
+    Track.Parent = Frame
+    ApplyCorner(Track, 3)
+
+    local initRatio = math.clamp((defaultVal - minVal) / (maxVal - minVal), 0, 1)
+
+    local Fill = Instance.new("Frame")
+    Fill.Size = UDim2.new(initRatio, 0, 1, 0)
+    Fill.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
+    Fill.BorderSizePixel = 0
+    Fill.Parent = Track
+    ApplyCorner(Fill, 3)
+
+    local Thumb = Instance.new("Frame")
+    Thumb.Size = UDim2.fromOffset(11, 11)
+    Thumb.Position = UDim2.new(initRatio, -5, 0.5, -5)
+    Thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Thumb.Parent = Track
+    ApplyCorner(Thumb, 6)
+    ApplyStroke(Thumb, Color3.fromRGB(99, 102, 241), 0.2, 1)
+
+    local isDragging = false
+
+    local function Update(input)
+        local posX = input.Position.X - Track.AbsolutePosition.X
+        local ratio = math.clamp(posX / Track.AbsoluteSize.X, 0, 1)
+        local val = math.floor(minVal + (maxVal - minVal) * ratio)
+        
+        Fill.Size = UDim2.new(ratio, 0, 1, 0)
+        Thumb.Position = UDim2.new(ratio, -5, 0.5, -5)
+        ValueText.Text = tostring(val)
+        onCallback(val)
+    end
+
+    Track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = true
+            Update(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            Update(input)
+        end
+    end)
 end
 
-PlatformButton.MouseButton1Click:Connect(function()
-	PlatformEnabled = not PlatformEnabled
+--// =========================================================
+--// LÓGICA DO SPEED
+--// =========================================================
+local speedConnection = nil
 
-	PlatformButton.Text = "Plataforma: " ..
-		(PlatformEnabled and "ON" or "OFF")
+local function ApplySpeed()
+    if speedConnection then
+        speedConnection:Disconnect()
+        speedConnection = nil
+    end
 
-	if PlatformEnabled then
-		CreatePlatform()
-	else
-		RemovePlatform()
-	end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    if Features.Speed.Enabled then
+        humanoid.WalkSpeed = Features.Speed.Value
+        
+        speedConnection = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+            if Features.Speed.Enabled and humanoid.WalkSpeed ~= Features.Speed.Value then
+                humanoid.WalkSpeed = Features.Speed.Value
+            end
+        end)
+    else
+        humanoid.WalkSpeed = 16
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    char:WaitForChild("Humanoid")
+    task.wait(0.1)
+    ApplySpeed()
 end)
 
---==================================================
--- LOOP DA PLATAFORMA
---==================================================
+--// =========================================================
+--// CARDS DA INTERFACE
+--// =========================================================
+
+-- Card 1: SPEED
+local SpeedCard = CreateCard(130)
+CreateHeader(SpeedCard, "⚡ Speed", Features.Speed.Enabled, function(state)
+    Features.Speed.Enabled = state
+    ApplySpeed()
+end)
+CreateSlider(SpeedCard, "Velocidade", 16, 250, Features.Speed.Value, function(val)
+    Features.Speed.Value = val
+    if Features.Speed.Enabled then
+        ApplySpeed()
+    end
+end)
+
+-- Card 2: INF JUMP
+local JumpCard = CreateCard(130)
+CreateHeader(JumpCard, "🦘 Inf Jump", Features.InfJump.Enabled, function(state)
+    Features.InfJump.Enabled = state
+end)
+CreateSlider(JumpCard, "Força Pulo", 30, 200, Features.InfJump.Power, function(val)
+    Features.InfJump.Power = val
+end)
+
+-- Card 3: PLATAFORMA
+local PlatformCard = CreateCard(145)
+CreateHeader(PlatformCard, "🧱 Plataforma", Features.Platform.Enabled, function(state)
+    Features.Platform.Enabled = state
+end)
+CreateSlider(PlatformCard, "Tamanho", 3, 25, Features.Platform.Size, function(val)
+    Features.Platform.Size = val
+end)
+CreateSlider(PlatformCard, "Altura (Offset)", -10, 5, math.floor(Features.Platform.Height), function(val)
+    Features.Platform.Height = val
+end)
+
+--// =========================================================
+--// LÓGICA DO PULO INFINITO E PLATAFORMA
+--// =========================================================
+UserInputService.JumpRequest:Connect(function()
+    if Features.InfJump.Enabled and LocalPlayer.Character then
+        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, Features.InfJump.Power, hrp.AssemblyLinearVelocity.Z)
+        end
+    end
+end)
+
+local PlatformPart = Instance.new("Part")
+PlatformPart.Name = "Yusaki_AutoPlatform"
+PlatformPart.Anchored = true
+PlatformPart.CanCollide = true
+PlatformPart.Material = Enum.Material.SmoothPlastic
+PlatformPart.Color = Color3.fromRGB(129, 140, 248)
+PlatformPart.Transparency = 0.35
+
+--// =========================================================
+--// LOOP PRINCIPAL (RENDERSTEPPED): ANIMAÇÃO RGB + PLATAFORMA
+--// =========================================================
+local hue = 0
 
 RunService.RenderStepped:Connect(function()
+    -- 1. Animação RGB das Bordas
+    hue = (tick() * 0.35) % 1
+    local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
 
-	if not PlatformEnabled then
-		return
-	end
+    for _, stroke in ipairs(RGBStrokes) do
+        if stroke and stroke.Parent then
+            stroke.Color = rainbowColor
+        end
+    end
 
-	if not Root then
-		return
-	end
-
-	if not Platform then
-		CreatePlatform()
-	end
-
-	-- Mantém a plataforma exatamente abaixo do player
-	Platform.CFrame = CFrame.new(
-		Root.Position.X,
-		Root.Position.Y - 3.5,
-		Root.Position.Z
-	)
+    -- 2. Atualização da Plataforma
+    if Features.Platform.Enabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        PlatformPart.Parent = workspace
+        PlatformPart.Size = Vector3.new(Features.Platform.Size, 0.8, Features.Platform.Size)
+        PlatformPart.CFrame = CFrame.new(hrp.Position.X, hrp.Position.Y + Features.Platform.Height, hrp.Position.Z)
+    else
+        PlatformPart.Parent = nil
+    end
 end)
 
---==================================================
--- ABRIR / FECHAR GUI
---==================================================
-
-CloseButton.MouseButton1Click:Connect(function()
-	Main.Visible = false
-	OpenButton.Visible = true
-end)
-
-OpenButton.MouseButton1Click:Connect(function()
-	Main.Visible = true
-	OpenButton.Visible = false
-end)
-
---==================================================
--- RESPAWN
---==================================================
-
-Player.CharacterAdded:Connect(function(char)
-
-	setupCharacter(char)
-
-	task.wait(0.5)
-
-	if PlatformEnabled then
-		CreatePlatform()
-	end
-
-end)
+print("[LITE HUB RGB] Interface carregada com bordas animadas RGB!")
