@@ -1,0 +1,317 @@
+--// YUSAKI MINI ESP HUB
+--// Roblox Studio
+--// Hitbox + Health Bar + ESP Name + Highlight
+
+_G.HeadSize = 10
+_G.HitboxEnabled = true
+_G.HealthEnabled = true
+_G.NameEnabled = true
+_G.HighlightEnabled = true
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+--==================================================
+-- GUI
+--==================================================
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "YusakiMiniHub"
+gui.ResetOnSpawn = false
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 210, 0, 190)
+frame.Position = UDim2.new(0.5, -105, 0.5, -95)
+frame.BackgroundColor3 = Color3.fromRGB(22,22,22)
+frame.BorderSizePixel = 0
+frame.Parent = gui
+
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,10)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,30)
+title.BackgroundTransparency = 1
+title.Text = "YUSAKI"
+title.TextColor3 = Color3.new(1,1,1)
+title.TextSize = 15
+title.Font = Enum.Font.GothamBold
+title.Parent = frame
+
+--==================================================
+-- SLIDER
+--==================================================
+
+local sizeLabel = Instance.new("TextLabel")
+sizeLabel.Size = UDim2.new(1,-20,0,20)
+sizeLabel.Position = UDim2.new(0,10,0,32)
+sizeLabel.BackgroundTransparency = 1
+sizeLabel.Text = "Hitbox: 10"
+sizeLabel.TextColor3 = Color3.new(1,1,1)
+sizeLabel.TextSize = 13
+sizeLabel.Font = Enum.Font.Gotham
+sizeLabel.TextXAlignment = Enum.TextXAlignment.Left
+sizeLabel.Parent = frame
+
+local bar = Instance.new("Frame")
+bar.Size = UDim2.new(1,-30,0,6)
+bar.Position = UDim2.new(0,15,0,58)
+bar.BackgroundColor3 = Color3.fromRGB(65,65,65)
+bar.BorderSizePixel = 0
+bar.Parent = frame
+
+Instance.new("UICorner", bar).CornerRadius = UDim.new(1,0)
+
+local knob = Instance.new("TextButton")
+knob.Size = UDim2.new(0,16,0,16)
+knob.Position = UDim2.new(0,0,0.5,-8)
+knob.Text = ""
+knob.BackgroundColor3 = Color3.fromRGB(255,255,255)
+knob.BorderSizePixel = 0
+knob.Parent = bar
+
+Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+
+local dragging = false
+local MIN = 1
+local MAX = 100
+
+local function setSize(value)
+    value = math.clamp(math.floor(value), MIN, MAX)
+
+    _G.HeadSize = value
+    sizeLabel.Text = "Hitbox: " .. value
+
+    local percent = (value - MIN) / (MAX - MIN)
+    knob.Position = UDim2.new(percent, -8, 0.5, -8)
+end
+
+local function updateSlider(input)
+    local x = math.clamp(
+        input.Position.X - bar.AbsolutePosition.X,
+        0,
+        bar.AbsoluteSize.X
+    )
+
+    local percent = x / bar.AbsoluteSize.X
+    setSize(MIN + ((MAX - MIN) * percent))
+end
+
+knob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging then
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+            updateSlider(input)
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+--==================================================
+-- TOGGLES
+--==================================================
+
+local function createToggle(text, y, callback)
+    local button = Instance.new("TextButton")
+
+    button.Size = UDim2.new(1,-20,0,27)
+    button.Position = UDim2.new(0,10,0,y)
+    button.BackgroundColor3 = Color3.fromRGB(38,38,38)
+    button.BorderSizePixel = 0
+    button.Text = text .. ": ON"
+    button.TextColor3 = Color3.new(1,1,1)
+    button.TextSize = 12
+    button.Font = Enum.Font.Gotham
+    button.Parent = frame
+
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0,6)
+
+    local enabled = true
+
+    button.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        button.Text = text .. (enabled and ": ON" or ": OFF")
+        callback(enabled)
+    end)
+
+    return button
+end
+
+createToggle("Health Bar", 72, function(v)
+    _G.HealthEnabled = v
+end)
+
+createToggle("ESP Name", 103, function(v)
+    _G.NameEnabled = v
+end)
+
+createToggle("Highlight", 134, function(v)
+    _G.HighlightEnabled = v
+end)
+
+--==================================================
+-- ESP
+--==================================================
+
+local function getTargets()
+    local targets = {}
+
+    -- NPCs dentro do Workspace
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:IsA("Model")
+        and obj ~= LocalPlayer.Character
+        and obj:FindFirstChildOfClass("Humanoid")
+        and obj:FindFirstChild("HumanoidRootPart") then
+            table.insert(targets, obj)
+        end
+    end
+
+    return targets
+end
+
+local function createESP(character)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local root = character:FindFirstChild("HumanoidRootPart")
+
+    if not humanoid or not root then
+        return
+    end
+
+    -- Highlight
+    if _G.HighlightEnabled and not character:FindFirstChild("YusakiHighlight") then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "YusakiHighlight"
+        highlight.FillTransparency = 0.65
+        highlight.OutlineTransparency = 0
+        highlight.Parent = character
+    end
+
+    -- Name
+    if _G.NameEnabled and not character:FindFirstChild("YusakiName") then
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "YusakiName"
+        billboard.Size = UDim2.new(0,150,0,30)
+        billboard.StudsOffset = Vector3.new(0,3,0)
+        billboard.AlwaysOnTop = true
+        billboard.Parent = root
+
+        local name = Instance.new("TextLabel")
+        name.Size = UDim2.new(1,0,1,0)
+        name.BackgroundTransparency = 1
+        name.Text = character.Name
+        name.TextColor3 = Color3.new(1,1,1)
+        name.TextStrokeTransparency = 0
+        name.TextSize = 13
+        name.Font = Enum.Font.GothamBold
+        name.Parent = billboard
+    end
+
+    -- Health Bar
+    if _G.HealthEnabled and not character:FindFirstChild("YusakiHealth") then
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "YusakiHealth"
+        billboard.Size = UDim2.new(0,100,0,6)
+        billboard.StudsOffset = Vector3.new(0,2.5,0)
+        billboard.AlwaysOnTop = true
+        billboard.Parent = root
+
+        local background = Instance.new("Frame")
+        background.Size = UDim2.new(1,0,1,0)
+        background.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        background.BorderSizePixel = 0
+        background.Parent = billboard
+
+        local health = Instance.new("Frame")
+        health.Name = "Health"
+        health.Size = UDim2.new(1,0,1,0)
+        health.BackgroundColor3 = Color3.fromRGB(0,255,80)
+        health.BorderSizePixel = 0
+        health.Parent = background
+    end
+end
+
+--==================================================
+-- LOOP
+--==================================================
+
+RunService.RenderStepped:Connect(function()
+
+    for _, character in ipairs(getTargets()) do
+
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local root = character:FindFirstChild("HumanoidRootPart")
+
+        if humanoid and root then
+
+            -- Hitbox para NPCs do próprio jogo
+            if _G.HitboxEnabled then
+                root.Size = Vector3.new(
+                    _G.HeadSize,
+                    _G.HeadSize,
+                    _G.HeadSize
+                )
+            end
+
+            -- ESP
+            createESP(character)
+
+            -- Atualiza vida
+            local healthGui = root:FindFirstChild("YusakiHealth")
+
+            if healthGui then
+                local background = healthGui:FindFirstChildOfClass("Frame")
+                local health = background and background:FindFirstChild("Health")
+
+                if health then
+                    local percent = math.clamp(
+                        humanoid.Health / humanoid.MaxHealth,
+                        0,
+                        1
+                    )
+
+                    health.Size = UDim2.new(percent,0,1,0)
+                end
+            end
+        end
+    end
+
+    -- Remove elementos quando desligados
+    for _, character in ipairs(getTargets()) do
+        local root = character:FindFirstChild("HumanoidRootPart")
+
+        if root then
+            if not _G.HighlightEnabled then
+                local h = character:FindFirstChild("YusakiHighlight")
+                if h then h:Destroy() end
+            end
+
+            if not _G.NameEnabled then
+                local n = root:FindFirstChild("YusakiName")
+                if n then n:Destroy() end
+            end
+
+            if not _G.HealthEnabled then
+                local h = root:FindFirstChild("YusakiHealth")
+                if h then h:Destroy() end
+            end
+        end
+    end
+end)
+
+setSize(_G.HeadSize)
