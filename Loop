@@ -1,21 +1,39 @@
---// YUSAKI - Luau Loop GUI
---// Código corrigido + Scrolling + Toggle abrir/fechar
+--// =========================================================
+--// YUSAKI LOOPS - MULTI-SLOT SCRIPT HUB (MAX 3 LOOPS)
+--// Compatível com Celular (Touch) e PC | Roblox Luau
+--// =========================================================
+
+repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local Running = false
+local GUI_NAME = "YusakiLoopsGUI"
+local Existing = PlayerGui:FindFirstChild(GUI_NAME)
+if Existing then
+    Existing:Destroy()
+end
 
---// GUI principal
+--// Estrutura para os 3 Loops / Saves simultâneos
+local Slots = {
+    [1] = { Name = "Slot 1", Code = "", Delay = 0.1, Running = false },
+    [2] = { Name = "Slot 2", Code = "", Delay = 0.1, Running = false },
+    [3] = { Name = "Slot 3", Code = "", Delay = 0.1, Running = false }
+}
+
+local ActiveSlot = 1
+
+--// GUI Principal
 local Gui = Instance.new("ScreenGui")
-Gui.Name = "LuauLoopGUI"
+Gui.Name = GUI_NAME
 Gui.ResetOnSpawn = false
 Gui.Parent = PlayerGui
 
---// Botão flutuante
+--// Botão Flutuante (Abrir/Fechar)
 local ToggleButton = Instance.new("TextButton")
 ToggleButton.Name = "ToggleButton"
 ToggleButton.Size = UDim2.fromOffset(55, 55)
@@ -32,226 +50,815 @@ local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(1, 0)
 ToggleCorner.Parent = ToggleButton
 
---// Janela
+local ToggleStroke = Instance.new("UIStroke")
+ToggleStroke.Thickness = 2
+ToggleStroke.Color = Color3.fromRGB(80, 80, 80)
+ToggleStroke.Parent = ToggleButton
+
+--// Janela Principal
 local Main = Instance.new("Frame")
-Main.Size = UDim2.fromOffset(320, 300)
-Main.Position = UDim2.new(0.5, -160, 0.5, -150)
-Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Main.Name = "MainFrame"
+Main.Size = UDim2.fromOffset(330, 340)
+Main.Position = UDim2.new(0.5, -165, 0.5, -170)
+Main.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
 Main.BorderSizePixel = 0
 Main.Parent = Gui
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.CornerRadius = UDim.new(0, 12)
 MainCorner.Parent = Main
 
---// Título
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 1.5
+MainStroke.Color = Color3.fromRGB(50, 50, 60)
+MainStroke.Parent = Main
+
+--// Título com efeito Borda/Sombra RGB
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -50, 0, 40)
-Title.Position = UDim2.fromOffset(10, 0)
+Title.Name = "Title"
+Title.Size = UDim2.new(1, -50, 0, 38)
+Title.Position = UDim2.fromOffset(15, 2)
 Title.BackgroundTransparency = 1
-Title.Text = "Luau Loop"
-Title.TextColor3 = Color3.new(1, 1, 1)
-Title.TextSize = 19
+Title.Text = "YUSAKI LOOPS"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
 Title.Font = Enum.Font.GothamBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Main
 
---// Botão X
+-- Borda RGB Animada no Título
+local TitleStroke = Instance.new("UIStroke")
+TitleStroke.Thickness = 2
+TitleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+TitleStroke.Color = Color3.fromRGB(255, 0, 0)
+TitleStroke.Parent = Title
+
+local hue = 0
+RunService.RenderStepped:Connect(function(dt)
+    hue = (hue + dt * 0.4) % 1
+    TitleStroke.Color = Color3.fromHSV(hue, 0.9, 1)
+end)
+
+--// Botão Fechar (X)
 local CloseButton = Instance.new("TextButton")
-CloseButton.Size = UDim2.fromOffset(35, 35)
-CloseButton.Position = UDim2.new(1, -40, 0, 3)
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.fromOffset(32, 32)
+CloseButton.Position = UDim2.new(1, -38, 0, 5)
 CloseButton.BackgroundTransparency = 1
 CloseButton.Text = "×"
-CloseButton.TextColor3 = Color3.fromRGB(220, 220, 220)
-CloseButton.TextSize = 25
+CloseButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+CloseButton.TextSize = 24
 CloseButton.Font = Enum.Font.GothamBold
 CloseButton.Parent = Main
 
---// Área de código com rolagem
+--// Barra dos Slots (3 Loops Simultâneos)
+local SlotBar = Instance.new("Frame")
+SlotBar.Name = "SlotBar"
+SlotBar.Size = UDim2.new(1, -20, 0, 32)
+SlotBar.Position = UDim2.fromOffset(10, 42)
+SlotBar.BackgroundTransparency = 1
+SlotBar.Parent = Main
+
+local SlotButtons = {}
+
+--// Área de Código com Rolagem
 local CodeScroll = Instance.new("ScrollingFrame")
-CodeScroll.Size = UDim2.new(1, -20, 0, 150)
-CodeScroll.Position = UDim2.fromOffset(10, 45)
-CodeScroll.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+CodeScroll.Name = "CodeScroll"
+CodeScroll.Size = UDim2.new(1, -20, 0, 145)
+CodeScroll.Position = UDim2.fromOffset(10, 80)
+CodeScroll.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
 CodeScroll.BorderSizePixel = 0
 CodeScroll.ScrollBarThickness = 5
+CodeScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
 CodeScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 CodeScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 CodeScroll.ScrollingDirection = Enum.ScrollingDirection.Y
 CodeScroll.Parent = Main
 
 local ScrollCorner = Instance.new("UICorner")
-ScrollCorner.CornerRadius = UDim.new(0, 7)
+ScrollCorner.CornerRadius = UDim.new(0, 8)
 ScrollCorner.Parent = CodeScroll
 
---// Caixa de código
+local ScrollStroke = Instance.new("UIStroke")
+ScrollStroke.Thickness = 1
+ScrollStroke.Color = Color3.fromRGB(40, 40, 50)
+ScrollStroke.Parent = CodeScroll
+
+--// Caixa de Texto do Código
 local CodeBox = Instance.new("TextBox")
-CodeBox.Size = UDim2.new(1, -10, 0, 140)
-CodeBox.Position = UDim2.fromOffset(5, 5)
+CodeBox.Name = "CodeBox"
+CodeBox.Size = UDim2.new(1, -12, 0, 135)
+CodeBox.Position = UDim2.fromOffset(6, 5)
 CodeBox.BackgroundTransparency = 1
-CodeBox.TextColor3 = Color3.new(1, 1, 1)
-CodeBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 120)
-CodeBox.PlaceholderText = "Cole seu código Luau aqui..."
+CodeBox.TextColor3 = Color3.fromRGB(240, 240, 240)
+CodeBox.PlaceholderColor3 = Color3.fromRGB(110, 110, 130)
+CodeBox.PlaceholderText = "-- Cole ou escreva seu código aqui..."
 CodeBox.Text = ""
 CodeBox.TextSize = 13
 CodeBox.Font = Enum.Font.Code
 CodeBox.TextXAlignment = Enum.TextXAlignment.Left
 CodeBox.TextYAlignment = Enum.TextYAlignment.Top
-CodeBox.TextWrapped = false
 CodeBox.MultiLine = true
 CodeBox.ClearTextOnFocus = false
 CodeBox.TextEditable = true
 CodeBox.Parent = CodeScroll
 
---// Intervalo
-local Interval = Instance.new("TextBox")
-Interval.Size = UDim2.fromOffset(100, 35)
-Interval.Position = UDim2.fromOffset(10, 205)
-Interval.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Interval.TextColor3 = Color3.new(1, 1, 1)
-Interval.Text = "0.1"
-Interval.TextSize = 14
-Interval.Font = Enum.Font.Gotham
-Interval.ClearTextOnFocus = false
-Interval.Parent = Main
-
-local IntervalCorner = Instance.new("UICorner")
-IntervalCorner.CornerRadius = UDim.new(0, 7)
-IntervalCorner.Parent = Interval
+--// Seção de Intervalo / Status
+local IntervalFrame = Instance.new("Frame")
+IntervalFrame.Size = UDim2.new(1, -20, 0, 35)
+IntervalFrame.Position = UDim2.fromOffset(10, 233)
+IntervalFrame.BackgroundTransparency = 1
+IntervalFrame.Parent = Main
 
 local IntervalLabel = Instance.new("TextLabel")
 IntervalLabel.Size = UDim2.fromOffset(100, 35)
-IntervalLabel.Position = UDim2.fromOffset(115, 205)
+IntervalLabel.Position = UDim2.fromOffset(0, 0)
 IntervalLabel.BackgroundTransparency = 1
-IntervalLabel.Text = "segundos"
-IntervalLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+IntervalLabel.Text = "Intervalo (s):"
+IntervalLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
 IntervalLabel.TextSize = 13
-IntervalLabel.Font = Enum.Font.Gotham
+IntervalLabel.Font = Enum.Font.GothamMedium
 IntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
-IntervalLabel.Parent = Main
+IntervalLabel.Parent = IntervalFrame
 
---// Iniciar
-local Start = Instance.new("TextButton")
-Start.Size = UDim2.fromOffset(140, 40)
-Start.Position = UDim2.fromOffset(10, 250)
-Start.BackgroundColor3 = Color3.fromRGB(45, 170, 75)
-Start.Text = "INICIAR"
-Start.TextColor3 = Color3.new(1, 1, 1)
-Start.TextSize = 15
-Start.Font = Enum.Font.GothamBold
-Start.Parent = Main
+local IntervalBox = Instance.new("TextBox")
+IntervalBox.Name = "IntervalBox"
+IntervalBox.Size = UDim2.fromOffset(75, 32)
+IntervalBox.Position = UDim2.fromOffset(95, 1)
+IntervalBox.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
+IntervalBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+IntervalBox.Text = "0.1"
+IntervalBox.TextSize = 13
+IntervalBox.Font = Enum.Font.GothamBold
+IntervalBox.ClearTextOnFocus = false
+IntervalBox.BorderSizePixel = 0
+IntervalBox.Parent = IntervalFrame
+
+local IntervalCorner = Instance.new("UICorner")
+IntervalCorner.CornerRadius = UDim.new(0, 6)
+IntervalCorner.Parent = IntervalBox
+
+local SlotStatusLabel = Instance.new("TextLabel")
+SlotStatusLabel.Name = "StatusLabel"
+SlotStatusLabel.Size = UDim2.fromOffset(120, 35)
+SlotStatusLabel.Position = UDim2.fromOffset(190, 0)
+SlotStatusLabel.BackgroundTransparency = 1
+SlotStatusLabel.Text = "🔴 Parado"
+SlotStatusLabel.TextColor3 = Color3.fromRGB(220, 100, 100)
+SlotStatusLabel.TextSize = 12
+SlotStatusLabel.Font = Enum.Font.GothamBold
+SlotStatusLabel.TextXAlignment = Enum.TextXAlignment.Right
+SlotStatusLabel.Parent = IntervalFrame
+
+--// Botões de Ação
+local StartBtn = Instance.new("TextButton")
+StartBtn.Name = "StartBtn"
+StartBtn.Size = UDim2.fromOffset(95, 38)
+StartBtn.Position = UDim2.fromOffset(10, 280)
+StartBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
+StartBtn.Text = "INICIAR"
+StartBtn.TextColor3 = Color3.new(1, 1, 1)
+StartBtn.TextSize = 13
+StartBtn.Font = Enum.Font.GothamBold
+StartBtn.BorderSizePixel = 0
+StartBtn.Parent = Main
 
 local StartCorner = Instance.new("UICorner")
 StartCorner.CornerRadius = UDim.new(0, 7)
-StartCorner.Parent = Start
+StartCorner.Parent = StartBtn
 
---// Parar
-local Stop = Instance.new("TextButton")
-Stop.Size = UDim2.fromOffset(140, 40)
-Stop.Position = UDim2.fromOffset(170, 250)
-Stop.BackgroundColor3 = Color3.fromRGB(170, 50, 50)
-Stop.Text = "PARAR"
-Stop.TextColor3 = Color3.new(1, 1, 1)
-Stop.TextSize = 15
-Stop.Font = Enum.Font.GothamBold
-Stop.Parent = Main
+local StopBtn = Instance.new("TextButton")
+StopBtn.Name = "StopBtn"
+StopBtn.Size = UDim2.fromOffset(95, 38)
+StopBtn.Position = UDim2.fromOffset(112, 280)
+StopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+StopBtn.Text = "PARAR"
+StopBtn.TextColor3 = Color3.new(1, 1, 1)
+StopBtn.TextSize = 13
+StopBtn.Font = Enum.Font.GothamBold
+StopBtn.BorderSizePixel = 0
+StopBtn.Parent = Main
 
 local StopCorner = Instance.new("UICorner")
 StopCorner.CornerRadius = UDim.new(0, 7)
-StopCorner.Parent = Stop
+StopCorner.Parent = StopBtn
 
---// Executar código
-local function ExecuteCode()
-    local Code = CodeBox.Text
+local StopAllBtn = Instance.new("TextButton")
+StopAllBtn.Name = "StopAllBtn"
+StopAllBtn.Size = UDim2.fromOffset(103, 38)
+StopAllBtn.Position = UDim2.fromOffset(214, 280)
+StopAllBtn.BackgroundColor3 = Color3.fromRGB(110, 35, 35)
+StopAllBtn.Text = "PARAR TODOS"
+StopAllBtn.TextColor3 = Color3.fromRGB(230, 230, 230)
+StopAllBtn.TextSize = 11
+StopAllBtn.Font = Enum.Font.GothamBold
+StopAllBtn.BorderSizePixel = 0
+StopAllBtn.Parent = Main
 
-    if Code == "" then
-        return
-    end
+local StopAllCorner = Instance.new("UICorner")
+StopAllCorner.CornerRadius = UDim.new(0, 7)
+StopAllCorner.Parent = StopAllBtn
 
-    local Function, Error = loadstring(Code)
-
-    if not Function then
-        warn("Erro no código: " .. tostring(Error))
-        return
-    end
-
-    local Success, Result = pcall(Function)
-
-    if not Success then
-        warn("Erro durante execução: " .. tostring(Result))
-    end
-end
-
---// Iniciar loop
-Start.MouseButton1Click:Connect(function()
-    if Running then
-        return
-    end
-
-    Running = true
-    Start.Text = "RODANDO..."
-
-    task.spawn(function()
-        while Running do
-            ExecuteCode()
-
-            local Delay = tonumber(Interval.Text) or 0.1
-            task.wait(math.max(0, Delay))
+--// Atualização da UI conforme o Slot ativo
+local function UpdateSlotUI()
+    local current = Slots[ActiveSlot]
+    
+    CodeBox.Text = current.Code
+    IntervalBox.Text = tostring(current.Delay)
+    
+    for id, btn in ipairs(SlotButtons) do
+        local isSelected = (id == ActiveSlot)
+        local isRunning = Slots[id].Running
+        
+        local statusSymbol = isRunning and "🟢" or "🔴"
+        btn.Text = "Slot " .. id .. " " .. statusSymbol
+        
+        if isSelected then
+            btn.BackgroundColor3 = Color3.fromRGB(55, 55, 75)
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+            btn.TextColor3 = Color3.fromRGB(160, 160, 180)
         end
-    end)
-end)
-
---// Parar loop
-Stop.MouseButton1Click:Connect(function()
-    Running = false
-    Start.Text = "INICIAR"
-end)
-
---// Abrir/fechar
-local function ToggleGUI()
-    Main.Visible = not Main.Visible
+    end
+    
+    if current.Running then
+        SlotStatusLabel.Text = "🟢 Executando"
+        SlotStatusLabel.TextColor3 = Color3.fromRGB(100, 220, 120)
+        StartBtn.Text = "RODANDO..."
+        StartBtn.BackgroundColor3 = Color3.fromRGB(30, 120, 60)
+    else
+        SlotStatusLabel.Text = "🔴 Parado"
+        SlotStatusLabel.TextColor3 = Color3.fromRGB(220, 100, 100)
+        StartBtn.Text = "INICIAR"
+        StartBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
+    end
 end
 
-ToggleButton.MouseButton1Click:Connect(ToggleGUI)
+-- Criar botões dos 3 Slots
+for i = 1, 3 do
+    local slotBtn = Instance.new("TextButton")
+    slotBtn.Name = "SlotButton_" .. i
+    slotBtn.Size = UDim2.new(0.315, -2, 1, 0)
+    slotBtn.Position = UDim2.new((i - 1) * 0.34, 0, 0, 0)
+    slotBtn.Font = Enum.Font.GothamBold
+    slotBtn.TextSize = 11
+    slotBtn.BorderSizePixel = 0
+    slotBtn.Parent = SlotBar
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = slotBtn
+    
+    slotBtn.MouseButton1Click:Connect(function()
+        -- Salva as alterações do slot antigo antes de alternar
+        Slots[ActiveSlot].Code = CodeBox.Text
+        Slots[ActiveSlot].Delay = tonumber(IntervalBox.Text) or 0.1
+        
+        ActiveSlot = i
+        UpdateSlotUI()
+    end)
+    
+    SlotButtons[i] = slotBtn
+end
+
+-- Salvar texto e intervalo digitados em tempo real
+CodeBox:GetPropertyChangedSignal("Text"):Connect(function()
+    Slots[ActiveSlot].Code = CodeBox.Text
+end)
+
+IntervalBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local val = tonumber(IntervalBox.Text)
+    if val then
+        Slots[ActiveSlot].Delay = math.max(0.01, val)
+    end
+end)
+
+-- Lógica para Executar um Slot em Loop
+local function RunSlotLoop(slotId)
+    local slot = Slots[slotId]
+    if slot.Running then return end
+    
+    slot.Running = true
+    UpdateSlotUI()
+    
+    task.spawn(function()
+        while slot.Running do
+            local code = slot.Code
+            if code and code:gsub("%s+", "") ~= "" then
+                local fn, err = loadstring(code)
+                if fn then
+                    local success, result = pcall(fn)
+                    if not success then
+                        warn("[YUSAKI LOOPS] Erro no Slot " .. slotId .. ": " .. tostring(result))
+                    end
+                else
+                    warn("[YUSAKI LOOPS] Sintaxe inválida no Slot " .. slotId .. ": " .. tostring(err))
+                end
+            end
+            
+            local delayTime = slot.Delay or 0.1
+            task.wait(math.max(0.01, delayTime))
+        end
+        UpdateSlotUI()
+    end)
+end
+
+-- Lógica para Parar um Slot
+local function StopSlotLoop(slotId)
+    Slots[slotId].Running = false
+    UpdateSlotUI()
+end
+
+-- Conexão dos Botões
+StartBtn.MouseButton1Click:Connect(function()
+    Slots[ActiveSlot].Code = CodeBox.Text
+    Slots[ActiveSlot].Delay = tonumber(IntervalBox.Text) or 0.1
+    RunSlotLoop(ActiveSlot)
+end)
+
+StopBtn.MouseButton1Click:Connect(function()
+    StopSlotLoop(ActiveSlot)
+end)
+
+StopAllBtn.MouseButton1Click:Connect(function()
+    for i = 1, 3 do
+        Slots[i].Running = false
+    end
+    UpdateSlotUI()
+end)
+
+-- Ocultar e Exibir Janela
+ToggleButton.MouseButton1Click:Connect(function()
+    Main.Visible = not Main.Visible
+end)
+
 CloseButton.MouseButton1Click:Connect(function()
     Main.Visible = false
 end)
 
---// Arrastar janela
+--// Arrastar Janela (Mobile & PC)
 local Dragging = false
-local DragStart
-local StartPosition
+local DragStart, StartPosition
 
-Main.InputBegan:Connect(function(Input)
-    if Input.UserInputType == Enum.UserInputType.Touch
-        or Input.UserInputType == Enum.UserInputType.MouseButton1 then
-
+Main.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
         Dragging = true
-        DragStart = Input.Position
+        DragStart = input.Position
         StartPosition = Main.Position
 
-        Input.Changed:Connect(function()
-            if Input.UserInputState == Enum.UserInputState.End then
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
                 Dragging = false
             end
         end)
     end
 end)
 
-UserInputService.InputChanged:Connect(function(Input)
-    if not Dragging then
-        return
-    end
-
-    if Input.UserInputType == Enum.UserInputType.Touch
-        or Input.UserInputType == Enum.UserInputType.MouseMovement then
-
-        local Delta = Input.Position - DragStart
-
+UserInputService.InputChanged:Connect(function(input)
+    if Dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+        local delta = input.Position - DragStart
         Main.Position = UDim2.new(
             StartPosition.X.Scale,
-            StartPosition.X.Offset + Delta.X,
+            StartPosition.X.Offset + delta.X,
             StartPosition.Y.Scale,
-            StartPosition.Y.Offset + Delta.Y
+            StartPosition.Y.Offset + delta.Y
         )
     end
 end)
+
+-- Inicialização
+UpdateSlotUI()
+print("[YUSAKI LOOPS] Hub carregado com sucesso (3 Slots simultâneos)!")
+--// =========================================================
+--// YUSAKI LOOPS - MULTI-SLOT SCRIPT HUB (MAX 3 LOOPS)
+--// Compatível com Celular (Touch) e PC | Roblox Luau
+--// =========================================================
+
+repeat task.wait() until game:IsLoaded()
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local GUI_NAME = "YusakiLoopsGUI"
+local Existing = PlayerGui:FindFirstChild(GUI_NAME)
+if Existing then
+    Existing:Destroy()
+end
+
+--// Estrutura para os 3 Loops / Saves simultâneos
+local Slots = {
+    [1] = { Name = "Slot 1", Code = "", Delay = 0.1, Running = false },
+    [2] = { Name = "Slot 2", Code = "", Delay = 0.1, Running = false },
+    [3] = { Name = "Slot 3", Code = "", Delay = 0.1, Running = false }
+}
+
+local ActiveSlot = 1
+
+--// GUI Principal
+local Gui = Instance.new("ScreenGui")
+Gui.Name = GUI_NAME
+Gui.ResetOnSpawn = false
+Gui.Parent = PlayerGui
+
+--// Botão Flutuante (Abrir/Fechar)
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Size = UDim2.fromOffset(55, 55)
+ToggleButton.Position = UDim2.new(0, 15, 0.5, -27)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+ToggleButton.Text = "≡"
+ToggleButton.TextColor3 = Color3.new(1, 1, 1)
+ToggleButton.TextSize = 25
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.BorderSizePixel = 0
+ToggleButton.Parent = Gui
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(1, 0)
+ToggleCorner.Parent = ToggleButton
+
+local ToggleStroke = Instance.new("UIStroke")
+ToggleStroke.Thickness = 2
+ToggleStroke.Color = Color3.fromRGB(80, 80, 80)
+ToggleStroke.Parent = ToggleButton
+
+--// Janela Principal
+local Main = Instance.new("Frame")
+Main.Name = "MainFrame"
+Main.Size = UDim2.fromOffset(330, 340)
+Main.Position = UDim2.new(0.5, -165, 0.5, -170)
+Main.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+Main.BorderSizePixel = 0
+Main.Parent = Gui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = Main
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 1.5
+MainStroke.Color = Color3.fromRGB(50, 50, 60)
+MainStroke.Parent = Main
+
+--// Título com efeito Borda/Sombra RGB
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, -50, 0, 38)
+Title.Position = UDim2.fromOffset(15, 2)
+Title.BackgroundTransparency = 1
+Title.Text = "YUSAKI LOOPS"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Main
+
+-- Borda RGB Animada no Título
+local TitleStroke = Instance.new("UIStroke")
+TitleStroke.Thickness = 2
+TitleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+TitleStroke.Color = Color3.fromRGB(255, 0, 0)
+TitleStroke.Parent = Title
+
+local hue = 0
+RunService.RenderStepped:Connect(function(dt)
+    hue = (hue + dt * 0.4) % 1
+    TitleStroke.Color = Color3.fromHSV(hue, 0.9, 1)
+end)
+
+--// Botão Fechar (X)
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.fromOffset(32, 32)
+CloseButton.Position = UDim2.new(1, -38, 0, 5)
+CloseButton.BackgroundTransparency = 1
+CloseButton.Text = "×"
+CloseButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+CloseButton.TextSize = 24
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = Main
+
+--// Barra dos Slots (3 Loops Simultâneos)
+local SlotBar = Instance.new("Frame")
+SlotBar.Name = "SlotBar"
+SlotBar.Size = UDim2.new(1, -20, 0, 32)
+SlotBar.Position = UDim2.fromOffset(10, 42)
+SlotBar.BackgroundTransparency = 1
+SlotBar.Parent = Main
+
+local SlotButtons = {}
+
+--// Área de Código com Rolagem
+local CodeScroll = Instance.new("ScrollingFrame")
+CodeScroll.Name = "CodeScroll"
+CodeScroll.Size = UDim2.new(1, -20, 0, 145)
+CodeScroll.Position = UDim2.fromOffset(10, 80)
+CodeScroll.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+CodeScroll.BorderSizePixel = 0
+CodeScroll.ScrollBarThickness = 5
+CodeScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
+CodeScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+CodeScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+CodeScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+CodeScroll.Parent = Main
+
+local ScrollCorner = Instance.new("UICorner")
+ScrollCorner.CornerRadius = UDim.new(0, 8)
+ScrollCorner.Parent = CodeScroll
+
+local ScrollStroke = Instance.new("UIStroke")
+ScrollStroke.Thickness = 1
+ScrollStroke.Color = Color3.fromRGB(40, 40, 50)
+ScrollStroke.Parent = CodeScroll
+
+--// Caixa de Texto do Código
+local CodeBox = Instance.new("TextBox")
+CodeBox.Name = "CodeBox"
+CodeBox.Size = UDim2.new(1, -12, 0, 135)
+CodeBox.Position = UDim2.fromOffset(6, 5)
+CodeBox.BackgroundTransparency = 1
+CodeBox.TextColor3 = Color3.fromRGB(240, 240, 240)
+CodeBox.PlaceholderColor3 = Color3.fromRGB(110, 110, 130)
+CodeBox.PlaceholderText = "-- Cole ou escreva seu código aqui..."
+CodeBox.Text = ""
+CodeBox.TextSize = 13
+CodeBox.Font = Enum.Font.Code
+CodeBox.TextXAlignment = Enum.TextXAlignment.Left
+CodeBox.TextYAlignment = Enum.TextYAlignment.Top
+CodeBox.MultiLine = true
+CodeBox.ClearTextOnFocus = false
+CodeBox.TextEditable = true
+CodeBox.Parent = CodeScroll
+
+--// Seção de Intervalo / Status
+local IntervalFrame = Instance.new("Frame")
+IntervalFrame.Size = UDim2.new(1, -20, 0, 35)
+IntervalFrame.Position = UDim2.fromOffset(10, 233)
+IntervalFrame.BackgroundTransparency = 1
+IntervalFrame.Parent = Main
+
+local IntervalLabel = Instance.new("TextLabel")
+IntervalLabel.Size = UDim2.fromOffset(100, 35)
+IntervalLabel.Position = UDim2.fromOffset(0, 0)
+IntervalLabel.BackgroundTransparency = 1
+IntervalLabel.Text = "Intervalo (s):"
+IntervalLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+IntervalLabel.TextSize = 13
+IntervalLabel.Font = Enum.Font.GothamMedium
+IntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
+IntervalLabel.Parent = IntervalFrame
+
+local IntervalBox = Instance.new("TextBox")
+IntervalBox.Name = "IntervalBox"
+IntervalBox.Size = UDim2.fromOffset(75, 32)
+IntervalBox.Position = UDim2.fromOffset(95, 1)
+IntervalBox.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
+IntervalBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+IntervalBox.Text = "0.1"
+IntervalBox.TextSize = 13
+IntervalBox.Font = Enum.Font.GothamBold
+IntervalBox.ClearTextOnFocus = false
+IntervalBox.BorderSizePixel = 0
+IntervalBox.Parent = IntervalFrame
+
+local IntervalCorner = Instance.new("UICorner")
+IntervalCorner.CornerRadius = UDim.new(0, 6)
+IntervalCorner.Parent = IntervalBox
+
+local SlotStatusLabel = Instance.new("TextLabel")
+SlotStatusLabel.Name = "StatusLabel"
+SlotStatusLabel.Size = UDim2.fromOffset(120, 35)
+SlotStatusLabel.Position = UDim2.fromOffset(190, 0)
+SlotStatusLabel.BackgroundTransparency = 1
+SlotStatusLabel.Text = "🔴 Parado"
+SlotStatusLabel.TextColor3 = Color3.fromRGB(220, 100, 100)
+SlotStatusLabel.TextSize = 12
+SlotStatusLabel.Font = Enum.Font.GothamBold
+SlotStatusLabel.TextXAlignment = Enum.TextXAlignment.Right
+SlotStatusLabel.Parent = IntervalFrame
+
+--// Botões de Ação
+local StartBtn = Instance.new("TextButton")
+StartBtn.Name = "StartBtn"
+StartBtn.Size = UDim2.fromOffset(95, 38)
+StartBtn.Position = UDim2.fromOffset(10, 280)
+StartBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
+StartBtn.Text = "INICIAR"
+StartBtn.TextColor3 = Color3.new(1, 1, 1)
+StartBtn.TextSize = 13
+StartBtn.Font = Enum.Font.GothamBold
+StartBtn.BorderSizePixel = 0
+StartBtn.Parent = Main
+
+local StartCorner = Instance.new("UICorner")
+StartCorner.CornerRadius = UDim.new(0, 7)
+StartCorner.Parent = StartBtn
+
+local StopBtn = Instance.new("TextButton")
+StopBtn.Name = "StopBtn"
+StopBtn.Size = UDim2.fromOffset(95, 38)
+StopBtn.Position = UDim2.fromOffset(112, 280)
+StopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+StopBtn.Text = "PARAR"
+StopBtn.TextColor3 = Color3.new(1, 1, 1)
+StopBtn.TextSize = 13
+StopBtn.Font = Enum.Font.GothamBold
+StopBtn.BorderSizePixel = 0
+StopBtn.Parent = Main
+
+local StopCorner = Instance.new("UICorner")
+StopCorner.CornerRadius = UDim.new(0, 7)
+StopCorner.Parent = StopBtn
+
+local StopAllBtn = Instance.new("TextButton")
+StopAllBtn.Name = "StopAllBtn"
+StopAllBtn.Size = UDim2.fromOffset(103, 38)
+StopAllBtn.Position = UDim2.fromOffset(214, 280)
+StopAllBtn.BackgroundColor3 = Color3.fromRGB(110, 35, 35)
+StopAllBtn.Text = "PARAR TODOS"
+StopAllBtn.TextColor3 = Color3.fromRGB(230, 230, 230)
+StopAllBtn.TextSize = 11
+StopAllBtn.Font = Enum.Font.GothamBold
+StopAllBtn.BorderSizePixel = 0
+StopAllBtn.Parent = Main
+
+local StopAllCorner = Instance.new("UICorner")
+StopAllCorner.CornerRadius = UDim.new(0, 7)
+StopAllCorner.Parent = StopAllBtn
+
+--// Atualização da UI conforme o Slot ativo
+local function UpdateSlotUI()
+    local current = Slots[ActiveSlot]
+    
+    CodeBox.Text = current.Code
+    IntervalBox.Text = tostring(current.Delay)
+    
+    for id, btn in ipairs(SlotButtons) do
+        local isSelected = (id == ActiveSlot)
+        local isRunning = Slots[id].Running
+        
+        local statusSymbol = isRunning and "🟢" or "🔴"
+        btn.Text = "Slot " .. id .. " " .. statusSymbol
+        
+        if isSelected then
+            btn.BackgroundColor3 = Color3.fromRGB(55, 55, 75)
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+            btn.TextColor3 = Color3.fromRGB(160, 160, 180)
+        end
+    end
+    
+    if current.Running then
+        SlotStatusLabel.Text = "🟢 Executando"
+        SlotStatusLabel.TextColor3 = Color3.fromRGB(100, 220, 120)
+        StartBtn.Text = "RODANDO..."
+        StartBtn.BackgroundColor3 = Color3.fromRGB(30, 120, 60)
+    else
+        SlotStatusLabel.Text = "🔴 Parado"
+        SlotStatusLabel.TextColor3 = Color3.fromRGB(220, 100, 100)
+        StartBtn.Text = "INICIAR"
+        StartBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
+    end
+end
+
+-- Criar botões dos 3 Slots
+for i = 1, 3 do
+    local slotBtn = Instance.new("TextButton")
+    slotBtn.Name = "SlotButton_" .. i
+    slotBtn.Size = UDim2.new(0.315, -2, 1, 0)
+    slotBtn.Position = UDim2.new((i - 1) * 0.34, 0, 0, 0)
+    slotBtn.Font = Enum.Font.GothamBold
+    slotBtn.TextSize = 11
+    slotBtn.BorderSizePixel = 0
+    slotBtn.Parent = SlotBar
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = slotBtn
+    
+    slotBtn.MouseButton1Click:Connect(function()
+        -- Salva as alterações do slot antigo antes de alternar
+        Slots[ActiveSlot].Code = CodeBox.Text
+        Slots[ActiveSlot].Delay = tonumber(IntervalBox.Text) or 0.1
+        
+        ActiveSlot = i
+        UpdateSlotUI()
+    end)
+    
+    SlotButtons[i] = slotBtn
+end
+
+-- Salvar texto e intervalo digitados em tempo real
+CodeBox:GetPropertyChangedSignal("Text"):Connect(function()
+    Slots[ActiveSlot].Code = CodeBox.Text
+end)
+
+IntervalBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local val = tonumber(IntervalBox.Text)
+    if val then
+        Slots[ActiveSlot].Delay = math.max(0.01, val)
+    end
+end)
+
+-- Lógica para Executar um Slot em Loop
+local function RunSlotLoop(slotId)
+    local slot = Slots[slotId]
+    if slot.Running then return end
+    
+    slot.Running = true
+    UpdateSlotUI()
+    
+    task.spawn(function()
+        while slot.Running do
+            local code = slot.Code
+            if code and code:gsub("%s+", "") ~= "" then
+                local fn, err = loadstring(code)
+                if fn then
+                    local success, result = pcall(fn)
+                    if not success then
+                        warn("[YUSAKI LOOPS] Erro no Slot " .. slotId .. ": " .. tostring(result))
+                    end
+                else
+                    warn("[YUSAKI LOOPS] Sintaxe inválida no Slot " .. slotId .. ": " .. tostring(err))
+                end
+            end
+            
+            local delayTime = slot.Delay or 0.1
+            task.wait(math.max(0.01, delayTime))
+        end
+        UpdateSlotUI()
+    end)
+end
+
+-- Lógica para Parar um Slot
+local function StopSlotLoop(slotId)
+    Slots[slotId].Running = false
+    UpdateSlotUI()
+end
+
+-- Conexão dos Botões
+StartBtn.MouseButton1Click:Connect(function()
+    Slots[ActiveSlot].Code = CodeBox.Text
+    Slots[ActiveSlot].Delay = tonumber(IntervalBox.Text) or 0.1
+    RunSlotLoop(ActiveSlot)
+end)
+
+StopBtn.MouseButton1Click:Connect(function()
+    StopSlotLoop(ActiveSlot)
+end)
+
+StopAllBtn.MouseButton1Click:Connect(function()
+    for i = 1, 3 do
+        Slots[i].Running = false
+    end
+    UpdateSlotUI()
+end)
+
+-- Ocultar e Exibir Janela
+ToggleButton.MouseButton1Click:Connect(function()
+    Main.Visible = not Main.Visible
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    Main.Visible = false
+end)
+
+--// Arrastar Janela (Mobile & PC)
+local Dragging = false
+local DragStart, StartPosition
+
+Main.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        Dragging = true
+        DragStart = input.Position
+        StartPosition = Main.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                Dragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if Dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+        local delta = input.Position - DragStart
+        Main.Position = UDim2.new(
+            StartPosition.X.Scale,
+            StartPosition.X.Offset + delta.X,
+            StartPosition.Y.Scale,
+            StartPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- Inicialização
+UpdateSlotUI()
+print("[YUSAKI LOOPS] Hub carregado com sucesso (3 Slots simultâneos)!")
