@@ -1,0 +1,315 @@
+--// =========================================================
+--// YUSAKI HUB - MASTER AUTO FARM, AUTO BOSS & AUTO SKILL
+--// Compatível com Mobile (Delta, Hydrogen) e PC
+--// =========================================================
+
+repeat task.wait() until game:IsLoaded()
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Limpeza de interface anterior
+local GUI_NAME = "YusakiMasterHub"
+if PlayerGui:FindFirstChild(GUI_NAME) then
+    PlayerGui[GUI_NAME]:Destroy()
+end
+
+-- Remotes do Servidor
+local ServerRemote = ReplicatedStorage:WaitForChild("Remotes", 10) and ReplicatedStorage.Remotes:WaitForChild("Serverside", 10)[span_0](start_span)[span_0](end_span)
+
+-- Configurações Globais
+_G.YusakiConfig = {
+    AutoBoss = false,
+    SelectedBoss = "Bandit Boss",
+    AutoSkill = false,
+    AutoClick = false,
+    AutoQuest = false,
+    SelectedQuest = 1,
+    AntiAFK = true
+}
+
+local BossList = {
+    "Bandit Boss", "Sand Bandit Boss", "Punch Bandit Boss",
+    "Ichigo Wizard Boss", "Vasto Lorde Boss", "Toji",
+    "Hunter Cosmic", "Steve Boss"
+}
+
+local QuestData = {
+    [1]  = {QuestName = "Quest 1",  MobName = "Bandit"},
+    [2]  = {QuestName = "Quest 2",  MobName = "Green Bandit"},
+    [3]  = {QuestName = "Quest 3",  MobName = "Sand Bandit"},
+    [4]  = {QuestName = "Quest 4",  MobName = "Punch Bandit"},
+    [5]  = {QuestName = "Quest 5",  MobName = "Dark Bandit"},
+    [6]  = {QuestName = "Quest 6",  MobName = "Clown"},
+    [7]  = {QuestName = "Quest 7",  MobName = "Clown Strong"},
+    [8]  = {QuestName = "Quest 8",  MobName = "Zombie"},
+    [9]  = {QuestName = "Quest 9",  MobName = "Hollow"},
+    [10] = {QuestName = "Quest 10", MobName = "Jujutsu Student"},
+    [11] = {QuestName = "Quest 11", MobName = "Piccolo"}
+}
+
+--// =========================================================
+--// FUNÇÕES AUXILIARES DE COMBATE & BUSCA
+--// =========================================================
+
+local function EquipWeapon()
+    local char = LocalPlayer.Character
+    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    
+    if backpack and humanoid then
+        local weapon = backpack:FindFirstChild("Combat") or backpack:GetChildren()[1]
+        if weapon and weapon:IsA("Tool") then
+            humanoid:EquipTool(weapon)
+        end
+    end
+end
+
+local function GetTargetEntity(targetName)
+    local searchArea = workspace:FindFirstChild("Main") or workspace[span_1](start_span)[span_1](end_span)
+    for _, obj in ipairs(searchArea:GetDescendants()) do
+        if obj.Name:lower():find(targetName:lower()) then
+            local humanoid = obj:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                return obj
+            end
+        end
+    end
+    return nil
+end
+
+local function AttackTarget(target)
+    if not target then return end
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local mobPart = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChildWhichIsA("BasePart")
+
+    if hrp and mobPart then
+        hrp.CFrame = mobPart.CFrame * CFrame.new(0, 0, 3) -- Posiciona nas costas[span_2](start_span)[span_2](end_span)
+    end
+
+    EquipWeapon()
+
+    if ServerRemote then
+        pcall(function()
+            ServerRemote:FireServer("Server", "Combat", "Swing", "Combat", 1)[span_3](start_span)[span_3](end_span)
+        end)
+    end
+end
+
+--// =========================================================
+--// LOOPS AUTOMÁTICOS
+--// =========================================================
+
+-- Loop Auto Boss
+task.spawn(function()
+    while true do
+        if _G.YusakiConfig.AutoBoss then
+            local boss = GetTargetEntity(_G.YusakiConfig.SelectedBoss)
+            if boss then
+                AttackTarget(boss)
+            end
+        end
+        task.wait(0.1)
+    end
+end)
+
+-- Loop Auto Quest / Mob Farm
+task.spawn(function()
+    while true do
+        if _G.YusakiConfig.AutoQuest and not _G.YusakiConfig.AutoBoss then
+            local questInfo = QuestData[_G.YusakiConfig.SelectedQuest]
+            if questInfo then
+                if ServerRemote then
+                    pcall(function()
+                        ServerRemote:FireServer("Server", "Quest", "Accept", questInfo.QuestName)
+                    end)
+                end
+                
+                local mob = GetTargetEntity(questInfo.MobName)
+                if mob then
+                    AttackTarget(mob)
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end)
+
+-- Loop Auto Skill
+task.spawn(function()
+    while true do
+        if _G.YusakiConfig.AutoSkill then
+            if ServerRemote then
+                pcall(function()
+                    ServerRemote:FireServer("Server", "Skill", "Use", 1)
+                    ServerRemote:FireServer("Server", "Skill", "Use", 2)
+                    ServerRemote:FireServer("Server", "Skill", "Use", 3)
+                end)
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+-- Loop Auto Click
+task.spawn(function()
+    while true do
+        if _G.YusakiConfig.AutoClick then
+            if ServerRemote then
+                pcall(function()
+                    ServerRemote:FireServer("Server", "Combat", "Swing", "Combat", 1)[span_4](start_span)[span_4](end_span)
+                end)
+            end
+        end
+        task.wait(0.05)
+    end
+end)
+
+-- Anti-AFK
+LocalPlayer.Idled:Connect(function()
+    if _G.YusakiConfig.AntiAFK then
+        VirtualUser:CaptureController()[span_5](start_span)[span_5](end_span)
+        VirtualUser:ClickButton2(Vector2.new(0,0))[span_6](start_span)[span_6](end_span)
+    end
+end)
+
+--// =========================================================
+--// INTERFACE GRÁFICA (YUSAKI HUB GUI)
+--// =========================================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = GUI_NAME
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+-- Botão Flutuante
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.fromOffset(45, 45)
+ToggleBtn.Position = UDim2.new(0, 15, 0.4, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+ToggleBtn.Text = "⚡"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextSize = 20
+ToggleBtn.Parent = ScreenGui
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
+
+-- Janela Principal
+local Main = Instance.new("Frame")
+Main.Size = UDim2.fromOffset(260, 360)
+Main.Position = UDim2.new(0.5, -130, 0.3, 0)
+Main.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+Main.Parent = ScreenGui
+Main.Active = true
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    Main.Visible = not Main.Visible
+end)
+
+-- Dragging System
+local dragging, dragStart, startPos
+Main.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = Main.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+end)
+
+-- Título
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.Text = "YUSAKI HUB - ALL IN ONE"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 12
+Title.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+Title.Parent = Main
+Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 10)
+
+local Container = Instance.new("ScrollingFrame")
+Container.Size = UDim2.new(1, -16, 1, -45)
+Container.Position = UDim2.fromOffset(8, 40)
+Container.BackgroundTransparency = 1
+Container.ScrollBarThickness = 2
+Container.Parent = Main
+
+local Layout = Instance.new("UIListLayout")
+Layout.Padding = UDim.new(0, 6)
+Layout.Parent = Container
+
+local function CreateToggle(text, configKey)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, 0, 0, 32)
+    Btn.BackgroundColor3 = _G.YusakiConfig[configKey] and Color3.fromRGB(40, 140, 70) or Color3.fromRGB(30, 30, 40)
+    Btn.Text = text .. ": " .. (_G.YusakiConfig[configKey] and "ON" or "OFF")
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.Font = Enum.Font.GothamMedium
+    Btn.TextSize = 11
+    Btn.Parent = Container
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+
+    Btn.MouseButton1Click:Connect(function()
+        _G.YusakiConfig[configKey] = not _G.YusakiConfig[configKey]
+        Btn.Text = text .. ": " .. (_G.YusakiConfig[configKey] and "ON" or "OFF")
+        Btn.BackgroundColor3 = _G.YusakiConfig[configKey] and Color3.fromRGB(40, 140, 70) or Color3.fromRGB(30, 30, 40)
+    end)
+    return Btn
+end
+
+-- Seletor de Boss
+local BossBtn = Instance.new("TextButton")
+BossBtn.Size = UDim2.new(1, 0, 0, 32)
+BossBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+BossBtn.Text = "Boss: " .. _G.YusakiConfig.SelectedBoss
+BossBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+BossBtn.Font = Enum.Font.GothamMedium
+BossBtn.TextSize = 11
+BossBtn.Parent = Container
+Instance.new("UICorner", BossBtn).CornerRadius = UDim.new(0, 6)
+
+local bossIdx = 1
+BossBtn.MouseButton1Click:Connect(function()
+    bossIdx = (bossIdx % #BossList) + 1
+    _G.YusakiConfig.SelectedBoss = BossList[bossIdx]
+    BossBtn.Text = "Boss: " .. _G.YusakiConfig.SelectedBoss
+end)
+
+-- Seletor de Quest
+local QuestBtn = Instance.new("TextButton")
+QuestBtn.Size = UDim2.new(1, 0, 0, 32)
+QuestBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+QuestBtn.Text = "Quest: " .. _G.YusakiConfig.SelectedQuest .. " (" .. QuestData[_G.YusakiConfig.SelectedQuest].MobName .. ")"
+QuestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+QuestBtn.Font = Enum.Font.GothamMedium
+QuestBtn.TextSize = 11
+QuestBtn.Parent = Container
+Instance.new("UICorner", QuestBtn).CornerRadius = UDim.new(0, 6)
+
+QuestBtn.MouseButton1Click:Connect(function()
+    _G.YusakiConfig.SelectedQuest = (_G.YusakiConfig.SelectedQuest % #QuestData) + 1
+    local qInfo = QuestData[_G.YusakiConfig.SelectedQuest]
+    QuestBtn.Text = "Quest: " .. _G.YusakiConfig.SelectedQuest .. " (" .. qInfo.MobName .. ")"
+end)
+
+-- Criando Toggles
+CreateToggle("⚔️ Auto Boss", "AutoBoss")
+CreateToggle("🔥 Auto Skill", "AutoSkill")
+CreateToggle("📜 Auto Quest", "AutoQuest")
+CreateToggle("🖱️ Auto Click", "AutoClick")
+CreateToggle("🛡️ Anti-AFK", "AntiAFK")
+
+Container.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 20)
