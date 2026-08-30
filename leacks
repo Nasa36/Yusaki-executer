@@ -1,6 +1,6 @@
 --// YUSAKI SCRIPT HUB - HORIZONTAL
 --// Mobile / PC | Native Roblox UI
---// Scripts: Loop | Plataform | Hitbox
+--// Scripts: Loop | Plataform | Hitbox | Steal Logs
 
 repeat task.wait() until game:IsLoaded()
 
@@ -50,6 +50,16 @@ local Scripts = {
 		Category = "Utility",
 		Code = [[
 			loadstring(game:HttpGet("https://raw.githubusercontent.com/Nasa36/Yusaki-executer/refs/heads/main/Hitbox"))()
+		]]
+	},
+
+	{
+		Name = "Steal Logs",
+		Description = "YUSAKI Steal Logs",
+		Type = "Loadstring",
+		Category = "Utility",
+		Code = [[
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/Nasa36/Yusaki-executer/refs/heads/main/steal%20logs"))()
 		]]
 	}
 }
@@ -787,4 +797,4 @@ UpdateResponsive()
 Main.Visible = true
 FloatingButton.Visible = true
 
-print("[YUSAKI HUB] Loaded: Loop | Plataform | Hitbox")
+print("[YUSAKI HUB] Loaded: Loop | Plataform | Hitbox | Steal Logs")
