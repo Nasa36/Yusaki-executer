@@ -1,174 +1,80 @@
 --// =========================================================
---// YUSAKI HUB - SCANNER COMPATÍVEL COM DELTA MOBILE
---// Cópia Automática + Janela de Leitura na Tela
+--// YUSAKI HUB - FULL GAME DUMPER & PLACE SAVER
 --// =========================================================
 
 repeat task.wait() until game:IsLoaded()
 
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-local StarterPack = game:GetService("StarterPack")
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-
-local MobsFound = {}
-local WeaponsFound = {}
-local AssetsFound = {}
-
-local function AddUnique(tbl, item)
-    if not table.find(tbl, item) then
-        table.insert(tbl, item)
-    end
-end
-
--- 1. ESCANEAR MOBS E NPCS
-for _, obj in ipairs(Workspace:GetDescendants()) do
+-- 1. SALVAR MAPA E ARQUIVOS COMPLETOS (.RBXL)
+if saveinstance then
     pcall(function()
-        if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
-            local isPlayer = false
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr.Character == obj then
-                    isPlayer = true
-                    break
-                end
-            end
-            if not isPlayer then AddUnique(MobsFound, obj.Name) end
-        end
+        print("[YUSAKI] Baixando arquivo completo do mapa (.rbxl)...")
+        saveinstance({mode = "full", noscripts = false})
+        warn("[YUSAKI] Projeto salvo com sucesso na pasta 'workspace' do seu executor!")
+    end)
+elseif noscripts then
+    pcall(function()
+        saveinstance()
     end)
 end
 
--- 2. ESCANEAR ARMAS E FERRAMENTAS
-local ToolContainers = {ReplicatedStorage, StarterPack, LocalPlayer:FindFirstChild("Backpack"), LocalPlayer.Character}
-for _, container in ipairs(ToolContainers) do
-    if container then
-        for _, obj in ipairs(container:GetDescendants()) do
-            pcall(function()
-                if obj:IsA("Tool") then AddUnique(WeaponsFound, obj.Name) end
-            end)
-        end
+-- 2. VARREDURA HIERÁRQUICA DE TODOS OS SERVIÇOS DO JOGO
+local gameDump = {}
+local totalObjects = 0
+
+local servicesToScan = {
+    game:GetService("Workspace"),
+    game:GetService("ReplicatedStorage"),
+    game:GetService("ReplicatedFirst"),
+    game:GetService("Players"),
+    game:GetService("Lighting"),
+    game:GetService("MaterialService"),
+    game:GetService("StarterGui"),
+    game:GetService("StarterPack"),
+    game:GetService("StarterPlayer"),
+    game:GetService("SoundService"),
+    game:GetService("TextChatService"),
+    game:GetService("JointsService")
+}
+
+local function scanInstance(instance, depth)
+    depth = depth or 0
+    local indent = string.rep("  ", depth)
+    local line = string.format("%s[%s] %s (%s)", indent, instance.ClassName, instance.Name, instance:GetFullName())
+    table.insert(gameDump, line)
+    totalObjects = totalObjects + 1
+
+    for _, child in ipairs(instance:GetChildren()) do
+        pcall(function()
+            scanInstance(child, depth + 1)
+        end)
     end
 end
 
--- 3. ESCANEAR ASSETS
-for _, obj in ipairs(game:GetDescendants()) do
+print("[YUSAKI] Escaneando todos os serviços e descendentes do jogo...")
+for _, service in ipairs(servicesToScan) do
     pcall(function()
-        if obj:IsA("MeshPart") and obj.MeshId ~= "" then
-            AddUnique(AssetsFound, "[Mesh] " .. obj.Name .. " -> " .. obj.MeshId)
-        elseif obj:IsA("SpecialMesh") and obj.MeshId ~= "" then
-            AddUnique(AssetsFound, "[SpecialMesh] " .. obj.Name .. " -> " .. obj.MeshId)
-        elseif (obj:IsA("Decal") or obj:IsA("Texture")) and obj.Texture ~= "" then
-            AddUnique(AssetsFound, "[Texture] " .. obj.Name .. " -> " .. obj.Texture)
-        elseif obj:IsA("Sound") and obj.SoundId ~= "" then
-            AddUnique(AssetsFound, "[Sound] " .. obj.Name .. " -> " .. obj.SoundId)
-        elseif obj:IsA("Animation") and obj.AnimationId ~= "" then
-            AddUnique(AssetsFound, "[Animation] " .. obj.Name .. " -> " .. obj.AnimationId)
-        end
+        table.insert(gameDump, "\n==========================================")
+        table.insert(gameDump, "SERVIÇO: " .. service.ClassName)
+        table.insert(gameDump, "==========================================")
+        scanInstance(service, 0)
     end)
 end
 
--- GERAR TEXTO COMPLETO
-local dumpText = "=== YUSAKI DATA DUMP ===\n"
-dumpText = dumpText .. "Place ID: " .. game.PlaceId .. "\n\n"
+local resultText = "=== YUSAKI FULL GAME DUMP ===\n"
+resultText = resultText .. "Place ID: " .. game.PlaceId .. "\n"
+resultText = resultText .. "Total de Objetos Extraídos: " .. totalObjects .. "\n\n"
+resultText = resultText .. table.concat(gameDump, "\n")
 
-dumpText = dumpText .. "--- MOBS ENCONTRADOS (" .. #MobsFound .. ") ---\n"
-for _, mob in ipairs(MobsFound) do dumpText = dumpText .. "• " .. mob .. "\n" end
+-- 3. SALVAMENTO DOS DADOS EM TEXTO
+if writefile then
+    local fileName = "Yusaki_FullGame_" .. game.PlaceId .. ".txt"
+    pcall(function()
+        writefile(fileName, resultText)
+        warn("[YUSAKI] Dump de texto salvo em: " .. fileName)
+    end)
+end
 
-dumpText = dumpText .. "\n--- ARMAS ENCONTRADAS (" .. #WeaponsFound .. ") ---\n"
-for _, weapon in ipairs(WeaponsFound) do dumpText = dumpText .. "• " .. weapon .. "\n" end
-
-dumpText = dumpText .. "\n--- ASSETS ENCONTRADOS (" .. #AssetsFound .. ") ---\n"
-for _, asset in ipairs(AssetsFound) do dumpText = dumpText .. asset .. "\n" end
-
--- 4. COPIAR DIRETO PARA A ÁREA DE TRANSFERÊNCIA DO CELULAR
 if setclipboard then
-    setclipboard(dumpText)
-    warn("[YUSAKI SCANNER] Todos os dados foram COPIADOS para a sua área de transferência!")
+    setclipboard(resultText)
+    warn("[YUSAKI] Árvore completa de arquivos copiada para a área de transferência!")
 end
-
--- 5. INTERFACE NA TELA PARA VISUALIZAR NO DELTA
-local GUI_NAME = "YusakiScannerResult"
-if PlayerGui:FindFirstChild(GUI_NAME) then PlayerGui[GUI_NAME]:Destroy() end
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = GUI_NAME
-ScreenGui.Parent = PlayerGui
-
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.fromOffset(320, 260)
-Frame.Position = UDim2.new(0.5, -160, 0.5, -130)
-Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-Frame.BorderSizePixel = 0
-Frame.Parent = ScreenGui
-
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 10)
-Corner.Parent = Frame
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -40, 0, 35)
-Title.Position = UDim2.fromOffset(10, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "YUSAKI SCANNER - RESULTADOS"
-Title.TextColor3 = Color3.fromRGB(99, 102, 241)
-Title.TextSize = 13
-Title.Font = Enum.Font.GothamBold
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = Frame
-
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.fromOffset(30, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 3)
-CloseBtn.BackgroundTransparency = 1
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.TextSize = 16
-CloseBtn.Parent = Frame
-CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-
-local Scroll = Instance.new("ScrollingFrame")
-Scroll.Size = UDim2.new(1, -20, 1, -80)
-Scroll.Position = UDim2.fromOffset(10, 35)
-Scroll.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-Scroll.BorderSizePixel = 0
-Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-Scroll.Parent = Frame
-
-local TextBox = Instance.new("TextBox")
-TextBox.Size = UDim2.new(1, -10, 1, 0)
-TextBox.Position = UDim2.fromOffset(5, 5)
-TextBox.BackgroundTransparency = 1
-TextBox.Text = dumpText
-TextBox.TextColor3 = Color3.fromRGB(220, 220, 220)
-TextBox.TextSize = 11
-TextBox.Font = Enum.Font.Code
-TextBox.TextXAlignment = Enum.TextXAlignment.Left
-TextBox.TextYAlignment = Enum.TextYAlignment.Top
-TextBox.ClearTextOnFocus = false
-TextBox.TextWrapped = true
-TextBox.MultiLine = true
-TextBox.Parent = Scroll
-
-local CopyBtn = Instance.new("TextButton")
-CopyBtn.Size = UDim2.new(1, -20, 0, 30)
-CopyBtn.Position = UDim2.new(0, 10, 1, -35)
-CopyBtn.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
-CopyBtn.Text = "COPIAR TUDO NOVAMENTE"
-CopyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CopyBtn.TextSize = 12
-CopyBtn.Font = Enum.Font.GothamBold
-CopyBtn.Parent = Frame
-
-local BtnCorner = Instance.new("UICorner")
-BtnCorner.CornerRadius = UDim.new(0, 6)
-BtnCorner.Parent = CopyBtn
-
-CopyBtn.MouseButton1Click:Connect(function()
-    if setclipboard then
-        setclipboard(dumpText)
-        CopyBtn.Text = "COPIADO COM SUCESSO!"
-        task.wait(1.5)
-        CopyBtn.Text = "COPIAR TUDO NOVAMENTE"
-    end
-end)
